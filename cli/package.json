@@ -1,0 +1,28 @@
+{
+  "name": "crossexam",
+  "version": "0.1.0",
+  "description": "Cross-examine what your coding agents claim. Catches \"tests pass\" when they don't.",
+  "type": "module",
+  "bin": {
+    "crossexam": "bin/crossexam.js"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "claude-code",
+    "codex",
+    "verification",
+    "code-review"
+  ],
+  "license": "MIT"
+}
