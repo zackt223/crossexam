@@ -51,6 +51,8 @@ test('detects assertions, ignores intentions and negations', () => {
   assert.deepEqual(detectClaims("The tests don't pass yet because of the fixture."), []);
   assert.deepEqual(detectClaims('Can you confirm the tests pass on CI?'), []);
   assert.deepEqual(detectClaims('Run `npm test` to check that the build succeeds.'), []);
+  assert.deepEqual(detectClaims('The demo shows an agent claiming "all tests pass" and getting caught.'), []);
+  assert.deepEqual(detectClaims('The demo shows an agent claiming “all tests pass” and getting caught.'), []);
   assert.deepEqual(detectClaims('Build succeeds and typecheck is clean.').map((c) => c.kind).sort(), ['build', 'types']);
   const r = detectClaims('Renamed `getUserById` to `fetchUser` everywhere — all call sites are updated.');
   assert.equal(r[0].kind, 'refactor');

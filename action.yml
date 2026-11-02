@@ -1,0 +1,39 @@
+name: crossexam
+description: Check what a coding agent claims in its pull request (tests pass, callers updated, versions bumped) against the checked-out branch.
+author: crossexam
+branding:
+  icon: check-circle
+  color: blue
+
+inputs:
+  fail-on:
+    description: "contradicted (default) fails the check when a claim is false; none only reports"
+    default: contradicted
+  working-directory:
+    description: Repository root to verify in
+    default: .
+  timeout:
+    description: Seconds allowed per check command
+    default: "600"
+
+outputs:
+  ok:
+    description: "true when no claim was contradicted"
+    value: ${{ steps.verify.outputs.ok }}
+  contradicted:
+    description: Number of contradicted claims
+    value: ${{ steps.verify.outputs.contradicted }}
+  agent:
+    description: The agent that opened the PR, when recognisable (copilot, codex, devin, jules, cursor, claude-code)
+    value: ${{ steps.verify.outputs.agent }}
+  summary:
+    description: Markdown summary, ready to post as a PR comment
+    value: ${{ steps.verify.outputs.summary }}
+
+runs:
+  using: composite
+  steps:
+    - id: verify
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: node "${{ github.action_path }}/cli/bin/crossexam.js" verify --github --fail-on "${{ inputs.fail-on }}" --timeout "${{ inputs.timeout }}"

@@ -1,7 +1,7 @@
 {
   "name": "crossexam",
-  "version": "0.1.0",
-  "description": "Cross-examine what your coding agents claim. Catches \"tests pass\" when they don't.",
+  "version": "0.2.0",
+  "description": "Cross-examine what any coding agent claims: verify CLI, MCP server, GitHub Action and transcript history for Claude Code, Codex, Gemini CLI, Cline, Aider and more.",
   "type": "module",
   "bin": {
     "crossexam": "bin/crossexam.js"
@@ -17,6 +17,12 @@
     "test": "node --test test/*.test.js"
   },
   "keywords": [
+    "mcp",
+    "cursor",
+    "copilot",
+    "gemini",
+    "aider",
+    "cline",
     "ai",
     "agents",
     "claude-code",

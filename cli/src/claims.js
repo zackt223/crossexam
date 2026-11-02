@@ -78,10 +78,19 @@ export function detectClaims(text) {
       if (HEDGE.test(lead) || HEDGE.test(own)) continue;
       if (NEGATION.test(lead.slice(-30)) || NEGATION.test(own)) continue;
       if (/\?\s*$/.test(s)) continue;
+      // Quoting a claim ("the agent said “all tests pass”") isn't making one.
+      if (insideQuotes(s, hit.index)) continue;
       found.push({ kind: /** @type {ClaimKind} */ (kind), sentence: s.slice(0, 280), subject: subjectOf(kind, s) });
     }
   }
   return found;
+}
+
+function insideQuotes(s, at) {
+  const before = s.slice(0, at);
+  const straight = (before.match(/"/g) || []).length % 2 === 1;
+  const curly = before.lastIndexOf('“') > before.lastIndexOf('”');
+  return straight || curly;
 }
 
 function subjectOf(kind, s) {

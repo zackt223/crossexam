@@ -110,6 +110,9 @@ export function judgeRun(ev) {
     return { status: 'masked', why: 'exit code hidden by a pipe, and no pass line in the output' };
   }
   if (ev.exitCode === 0 || PASS_SIGNALS.some((re) => re.test(out))) return { status: 'pass', why: ev.exitCode === 0 ? 'exited 0' : 'pass line in output' };
+  // Some agents (Cline, Aider) log output but no exit code: without a pass
+  // line there is nothing to trust.
+  if (ev.exitCode == null) return { status: 'masked', why: 'no exit code was recorded and the output has no pass line' };
   return { status: masked ? 'masked' : 'pass', why: masked ? 'exit code hidden by a pipe' : 'no error reported' };
 }
 

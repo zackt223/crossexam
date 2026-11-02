@@ -7,11 +7,9 @@
 //   unbacked      nothing that could back the claim ran at all
 //   review        evidence exists but can't settle it (masked exit, subset run, security)
 
-import { execFileSync, spawnSync } from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
 import { detectClaims, taskTypeOf } from './claims.js';
 import { RUNNERS, SEARCH, excerpt, isEdit, judgeRun, runsCheck } from './evidence.js';
+import { detectCommands, grepRepo, manifestVersion, runCommandSync, versionMatches } from './live.js';
 
 /** Which runner families can back which claim kind. */
 const BACKED_BY = {
@@ -92,9 +90,9 @@ function judge(claim, pos, turnIndex, timeline, live) {
   const runIdx = findLastIndex(before, (e) => e.kind === 'tool' && !e.denied && e.command && e.turn >= turnIndex - 1 && families.some((f) => runsCheck(f, e.command)));
 
   if (live?.rerun && claim.kind === 'tests') {
-    const cmd = runIdx >= 0 ? before[runIdx].command : guessTestCommand(live.cwd);
+    const cmd = runIdx >= 0 ? before[runIdx].command : detectCommands(live.cwd).tests?.command;
     if (cmd) {
-      const res = rerun(cmd, live);
+      const res = runCommandSync(cmd, { cwd: live.cwd, timeoutMs: live.timeoutMs ?? 180000 });
       const j = judgeRun(res);
       const ev = { command: cmd, exitCode: res.exitCode, excerpt: excerpt(res.output), rerun: true };
       if (j.status === 'fail') return { verdict: 'contradicted', reason: `Re-ran \`${short(cmd)}\` just now: ${j.why}.`, evidence: ev };
@@ -154,12 +152,12 @@ function judgeRefactor(claim, before, lastEditIdx, turnIndex, live) {
 function judgeDeps(claim, before, turnIndex, live) {
   const { pkg, version } = claim.subject || {};
   if (live && pkg && version) {
-    const found = installedVersion(live.cwd, pkg);
+    const found = manifestVersion(live.cwd, pkg);
     if (found) {
-      const ok = found.replace(/^[\^~>=v\s]+/, '').startsWith(version.replace(/^v/, '').split('.').slice(0, 2).join('.'));
-      return ok
-        ? { verdict: 'verified', reason: `package.json pins ${pkg}@${found}.`, evidence: { command: `read package.json`, exitCode: 0, excerpt: `"${pkg}": "${found}"` } }
-        : { verdict: 'contradicted', reason: `Claimed ${pkg} → ${version}, but package.json still says ${found}.`, evidence: { command: `read package.json`, exitCode: 0, excerpt: `"${pkg}": "${found}"` } };
+      const ev = { command: `read ${found.file}`, exitCode: 0, excerpt: `${pkg} ${found.version}` };
+      return versionMatches(found.version, version)
+        ? { verdict: 'verified', reason: `${found.file} has ${pkg} at ${found.version}.`, evidence: ev }
+        : { verdict: 'contradicted', reason: `Claimed ${pkg} ${version}, but ${found.file} still has ${found.version}.`, evidence: ev };
     }
   }
   const idx = findLastIndex(before, (e) => e.kind === 'tool' && !e.denied && e.command && e.turn >= turnIndex - 1 && runsCheck('deps', e.command) && (!pkg || e.command.includes(pkg)));
@@ -169,43 +167,6 @@ function judgeDeps(claim, before, turnIndex, live) {
   const ev = { command: run.command, exitCode: run.exitCode, excerpt: excerpt(run.output) };
   if (j.status === 'fail') return { verdict: 'contradicted', reason: `\`${short(run.command)}\` failed: ${j.why}.`, evidence: ev };
   return { verdict: 'verified', reason: `\`${short(run.command)}\` completed.`, evidence: ev };
-}
-
-// ---------- live checks (hook mode) ----------
-
-function grepRepo(cwd, sym, to) {
-  try {
-    const out = execFileSync('git', ['grep', '-n', '-w', '-I', '--', sym], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 8 << 20 });
-    return out.split('\n').filter((l) => l && (!to || !l.includes(to))).slice(0, 50);
-  } catch (e) {
-    if (e.status === 1) return []; // git grep: no matches
-    return null; // not a git repo, or git missing
-  }
-}
-
-function installedVersion(cwd, pkg) {
-  try {
-    const j = JSON.parse(fs.readFileSync(path.join(cwd, 'package.json'), 'utf8'));
-    return j.dependencies?.[pkg] || j.devDependencies?.[pkg] || j.peerDependencies?.[pkg] || null;
-  } catch {
-    return null;
-  }
-}
-
-function guessTestCommand(cwd) {
-  try {
-    const j = JSON.parse(fs.readFileSync(path.join(cwd, 'package.json'), 'utf8'));
-    if (j.scripts?.test && !/no test specified/.test(j.scripts.test)) return 'npm test';
-  } catch {}
-  if (fs.existsSync(path.join(cwd, 'go.mod'))) return 'go test ./...';
-  if (fs.existsSync(path.join(cwd, 'Cargo.toml'))) return 'cargo test';
-  if (fs.existsSync(path.join(cwd, 'pyproject.toml')) || fs.existsSync(path.join(cwd, 'pytest.ini'))) return 'pytest -q';
-  return null;
-}
-
-function rerun(cmd, live) {
-  const r = spawnSync(cmd, { cwd: live.cwd, shell: true, encoding: 'utf8', timeout: live.timeoutMs ?? 180000, env: { ...process.env, CI: '1', FORCE_COLOR: '0' } });
-  return { command: cmd, exitCode: r.status ?? 1, output: (r.stdout || '') + (r.stderr || ''), isError: r.status !== 0 };
 }
 
 // ---------- helpers ----------

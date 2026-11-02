@@ -51,6 +51,15 @@ export const AGENT_LABEL: Record<string, string> = {
   codex: 'Codex',
   cursor: 'Cursor',
   copilot: 'Copilot',
+  gemini: 'Gemini CLI',
+  cline: 'Cline',
+  'roo-code': 'Roo Code',
+  'kilo-code': 'Kilo Code',
+  aider: 'Aider',
+  devin: 'Devin',
+  jules: 'Jules',
+  windsurf: 'Windsurf',
+  open: 'Other agent',
 };
 export const agentLabel = (a: string) => AGENT_LABEL[a] ?? a;
 

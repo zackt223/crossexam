@@ -18,6 +18,7 @@ export default function Landing() {
       <Nav />
       <Hero />
       <AgentStrip />
+      <WaysIn />
       <ClaimsGrid />
       <Neutral />
       <History />
@@ -39,6 +40,7 @@ function Nav() {
         <Wordmark />
       </a>
       <nav className="nav-links">
+        <a href="#agents">Any agent</a>
         <a href="#checks">Checks</a>
         <a href="#neutral">Why neutral</a>
         <a href="#teams">For teams</a>
@@ -74,7 +76,7 @@ function Hero() {
           We check.
         </h1>
         <p className="lede">
-          crossexam cross-examines every claim your coding agent makes against what actually ran. Tests, refactors, migrations, dependency bumps. Neutral across every agent.
+          crossexam cross-examines every claim your coding agent makes against what actually ran. Tests, refactors, migrations, dependency bumps. Claude Code, Codex, Cursor, Copilot, or whatever you run next.
         </p>
         <div className="hero-ctas">
           <CopyCmd cmd="npx crossexam scan" />
@@ -93,15 +95,50 @@ function Hero() {
 function AgentStrip() {
   return (
     <section className="strip">
-      <span className="strip-label">Reads transcripts from</span>
+      <span className="strip-label">Works with whatever your team runs</span>
       <div className="strip-row">
-        {['Claude Code', 'Codex', 'Cursor', 'Copilot', 'Gemini CLI', 'Devin'].map((a, i) => (
-          <span key={a} className={`strip-item${i > 1 ? ' soon' : ''}`}>
+        {['Claude Code', 'Codex', 'Cursor', 'Copilot', 'Gemini CLI', 'Windsurf', 'Cline', 'Roo Code', 'Aider', 'Devin', 'Jules', 'Zed'].map((a) => (
+          <span key={a} className="strip-item">
             {a}
-            {i > 1 && <em>soon</em>}
           </span>
         ))}
       </div>
+    </section>
+  );
+}
+
+const WAYS_IN: { title: string; sub: string; cmd: string; who: string[] }[] = [
+  { title: 'A tool the agent calls', sub: 'An MCP server with one job: check the summary before the agent says done.', cmd: 'npx crossexam init --mcp', who: ['Cursor', 'Copilot', 'Windsurf', 'Codex', 'Gemini CLI', 'Claude Code', 'Cline', 'Zed', 'any MCP client'] },
+  { title: 'A rule every agent reads', sub: 'One block in AGENTS.md tells any agent working in the repo to verify before it reports.', cmd: 'npx crossexam init', who: ['Codex', 'Cursor', 'Copilot', 'Jules', 'Amp', 'opencode', 'CLAUDE.md', 'GEMINI.md'] },
+  { title: 'A check on every agent PR', sub: 'Cloud agents write their claims in the PR description. A GitHub Action re-checks them on the branch.', cmd: 'crossexam verify --github', who: ['Copilot coding agent', 'Codex', 'Devin', 'Jules', 'Cursor background agents', 'Claude'] },
+  { title: 'Any summary, anywhere', sub: 'Pipe in whatever an agent said. crossexam re-runs your tests, build and types, and greps the repo.', cmd: 'crossexam verify "all tests pass"', who: ['CI jobs', 'git hooks', 'scripts', 'internal agents'] },
+];
+
+function WaysIn() {
+  return (
+    <section className="block" id="agents">
+      <div className="block-head">
+        <span className="eyebrow">Any agent</span>
+        <h2>Four ways in. No agent left unchecked.</h2>
+        <p>crossexam doesn’t need an integration from your agent vendor. It checks claims against your repo, so it works wherever claims get made.</p>
+      </div>
+      <div className="ways">
+        {WAYS_IN.map((w) => (
+          <article key={w.title} className="way">
+            <div className="way-title">{w.title}</div>
+            <div className="way-sub">{w.sub}</div>
+            <code className="way-cmd">{w.cmd}</code>
+            <div className="way-who">
+              {w.who.map((a) => (
+                <span key={a}>{a}</span>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+      <p className="ways-foot">
+        Plus history: <b>crossexam scan</b> reads past transcripts from Claude Code, Codex, Gemini CLI, Cline, Roo Code, Kilo Code and Aider, and an open format for anything else.
+      </p>
     </section>
   );
 }
@@ -279,7 +316,7 @@ function RoutingSection() {
 function Steps() {
   const steps = [
     { n: 1, t: 'See your own numbers', d: 'Scan the agent transcripts already on your machine. Nothing leaves it.', cmd: 'npx crossexam scan' },
-    { n: 2, t: 'Put it in the loop', d: 'Install the Claude Code Stop hook. A false “done” sends the turn back with the failing output.', cmd: 'npx crossexam install' },
+    { n: 2, t: 'Put it in the loop', d: 'Every agent in the repo gets the AGENTS.md rule and the MCP tool, so a false “done” is caught before you read it.', cmd: 'npx crossexam init --mcp' },
     { n: 3, t: 'Bring the team', d: 'Export a report, drop it on the dashboard, and see reliability by agent, model and repo.', cmd: 'npx crossexam scan --json' },
   ];
   return (
@@ -303,8 +340,8 @@ function Steps() {
 
 function Pricing() {
   const plans = [
-    { name: 'Free', price: '$0', per: 'forever', items: ['CLI and Claude Code hook', 'Claude Code and Codex transcripts', 'Runs locally, nothing uploaded', 'Unlimited scans'], cta: <CopyCmd cmd="npx crossexam scan" small />, hi: false },
-    { name: 'Team', price: '$24', per: 'per developer / month', items: ['Shared reliability history', 'Review routing and auto-merge policy', 'GitHub checks on agent PRs', 'Every agent, one ledger'], cta: <a className="pill-btn blue wide" href={WAITLIST}>Join the early access list</a>, hi: true },
+    { name: 'Free', price: '$0', per: 'forever', items: ['Every agent: MCP tool, AGENTS.md rule, verify', 'GitHub Action for agent PRs', 'Transcript history for 7 agents', 'Runs locally, nothing uploaded'], cta: <CopyCmd cmd="npx crossexam scan" small />, hi: false },
+    { name: 'Team', price: '$24', per: 'per developer / month', items: ['Shared reliability history', 'Review routing and auto-merge policy', 'Dashboard across every repo', 'Every agent, one ledger'], cta: <a className="pill-btn blue wide" href={WAITLIST}>Join the early access list</a>, hi: true },
     { name: 'Enterprise', price: 'Custom', per: '', items: ['Audit trail and policy controls', 'SOC 2 evidence export', 'SSO and data residency', 'Self-hosted verifier'], cta: <a className="pill-btn ghost wide" href={WAITLIST}>Talk to us</a>, hi: false },
   ];
   return (
@@ -338,7 +375,9 @@ function Pricing() {
 
 function Faq() {
   const qa = [
-    ['Does my code or transcript leave my machine?', 'Not with the CLI. It reads the transcripts your agents already write to disk (~/.claude/projects, ~/.codex/sessions), checks them locally, and prints a report. The dashboard loads that report in your browser.'],
+    ['Which agents does it work with?', 'Any of them. An agent that can call an MCP tool, read AGENTS.md, open a pull request or print a summary can be checked, because crossexam verifies claims against your repo instead of trusting the agent. For history, it reads Claude Code, Codex, Gemini CLI, Cline, Roo Code, Kilo Code and Aider transcripts directly, plus an open format any other tool can write.'],
+    ['Does my code or transcript leave my machine?', 'Not with the CLI. It reads the transcripts your agents already write to disk, checks them locally, and prints a report. The dashboard loads that report in your browser.'],
+    ['Will it run my migrations?', 'Never on its own. It re-runs the tests, builds, typechecks and linters it finds in your repo. Migrations are only checked through a read-only status command you name in crossexam.json.'],
     ['How does it decide a claim is false?', 'Each claim kind has its own evidence. “Tests pass” needs a test run after the last edit that exited 0 and printed no failures. “All callers updated” needs the old name to be gone from the repo. A run that hid its exit code behind a pipe is flagged as inconclusive, not trusted.'],
     ['Will it block my agent forever?', 'No. The hook sends a turn back once. If the agent still can’t back the claim, crossexam tells you instead of looping.'],
     ['Why not wait for my agent vendor to build this?', 'They can only grade their own agent, and none of them will publish how often it’s wrong in your repo. A verifier is only credible if it is independent of what it verifies.'],

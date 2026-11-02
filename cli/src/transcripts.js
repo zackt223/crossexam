@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
+import { readAiderSession, readClineSession, readGeminiSession, readOpenSession } from './readers.js';
 
 export function defaultSources(home = os.homedir()) {
   return [
@@ -207,6 +208,23 @@ function unwrapShell(argv) {
   return argv.join(' ');
 }
 
-export function readSession(agent, file) {
-  return agent === 'codex' ? readCodexSession(file) : readClaudeSession(file);
+export const AGENTS = ['claude-code', 'codex', 'gemini', 'cline', 'roo-code', 'kilo-code', 'aider', 'open'];
+
+export async function readSession(agent, file) {
+  switch (agent) {
+    case 'codex':
+      return readCodexSession(file);
+    case 'gemini':
+      return readGeminiSession(file);
+    case 'cline':
+    case 'roo-code':
+    case 'kilo-code':
+      return readClineSession(file, agent);
+    case 'aider':
+      return readAiderSession(file);
+    case 'open':
+      return readOpenSession(file);
+    default:
+      return readClaudeSession(file);
+  }
 }
