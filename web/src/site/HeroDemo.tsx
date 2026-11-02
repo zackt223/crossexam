@@ -39,7 +39,10 @@ export function HeroDemo() {
           <i />
         </span>
         <span className="demo-title">~/northwind/billing-api — claude</span>
-        <span className="demo-badge">crossexam hook on</span>
+        <button className="demo-replay" onClick={() => setN(reduce ? SCRIPT.length : 0)} aria-label="Replay the demo">
+          ↻ replay
+        </button>
+        <span className="demo-badge">crossexam on</span>
       </div>
       <div className="demo-body">
         {SCRIPT.slice(0, n).map(({ line }, i) => (

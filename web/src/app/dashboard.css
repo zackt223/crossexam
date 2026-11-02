@@ -50,7 +50,7 @@
 .nav-n { font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .nav-n.hot { color: var(--bad); font-weight: 600; }
 
-.side-label { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 6px 10px; color: var(--ink-3); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+.side-label { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 6px 10px; color: var(--ink-3); font-size: 12px; letter-spacing: .02em; text-transform: lowercase; }
 .tree { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
 .tree-row { display: flex; align-items: center; gap: 11px; width: 100%; height: 40px; padding: 0 12px; border-radius: 10px; text-align: left; color: var(--ink-2) !important; }
 .tree-row:not(.root) { padding-left: 26px; }
@@ -147,7 +147,7 @@
 
 /* ---------- matrix ---------- */
 .insight { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 12px; background: #f6f6f4; font-size: 15px; margin-bottom: 14px; }
-.insight-tag { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--bad); background: #fdecec; padding: 3px 8px; border-radius: 6px; flex: none; }
+.insight-tag { font-size: 12px; font-weight: 600; text-transform: lowercase; letter-spacing: .01em; color: var(--bad); background: #fdecec; padding: 3px 8px; border-radius: 6px; flex: none; }
 .matrix-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
 .matrix { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .matrix th { font-weight: 500; color: var(--ink-3); font-size: 12.5px; text-align: center; padding: 12px 8px; white-space: nowrap; }
@@ -298,6 +298,12 @@
   .folder-meta { font-size: 12.5px; }
   .feed-line { font-size: 14.5px; }
 }
+
+/* all-lowercase voice; code, commands, paths and model ids keep their case */
+.dash { text-transform: lowercase; }
+.dash button, .dash select, .dash input::placeholder { text-transform: inherit; }
+.dash input::placeholder { text-transform: lowercase; }
+.dash code, .dash pre, .dash kbd, .dash input, .dash .mono, .dash .term { text-transform: none; }
 
 @keyframes fade { from { opacity: 0; } }
 @keyframes slide { from { transform: translateX(24px); opacity: 0; } }

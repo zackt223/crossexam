@@ -3,5 +3,6 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [react()],
-  server: { port: 5291 },
+  // The site's playground runs the CLI's own claim detector (../cli/src/claims.js).
+  server: { port: 5291, fs: { allow: ['..'] } },
 });
