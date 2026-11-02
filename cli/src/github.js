@@ -2,6 +2,7 @@
 // Codex, Devin, Jules, Cursor background agents, Claude) writes its claims in
 // the PR description. In CI the branch is checked out, so verify them there.
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 
 const BOTS = [
@@ -56,7 +57,10 @@ export function emitActions(pr, r) {
   if (process.env.GITHUB_OUTPUT) {
     const n = (v) => r.results.filter((x) => x.verdict === v).length;
     fs.appendFileSync(process.env.GITHUB_OUTPUT, `ok=${r.ok}\ncontradicted=${n('contradicted')}\nverified=${n('verified')}\nagent=${pr?.agent ?? 'unknown'}\n`);
-    fs.appendFileSync(process.env.GITHUB_OUTPUT, `summary<<CROSSEXAM_EOF\n${md}\nCROSSEXAM_EOF\n`);
+    // A fresh delimiter each run, so test output or grepped repo text can't end
+    // the block early and set outputs of its own.
+    const eof = `CROSSEXAM_EOF_${crypto.randomUUID().replace(/-/g, '')}`;
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, `summary<<${eof}\n${md}\n${eof}\n`);
   }
   return md;
 }

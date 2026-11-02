@@ -90,7 +90,11 @@ function judge(claim, pos, turnIndex, timeline, live) {
   const runIdx = findLastIndex(before, (e) => e.kind === 'tool' && !e.denied && e.command && e.turn >= turnIndex - 1 && families.some((f) => runsCheck(f, e.command)));
 
   if (live?.rerun && claim.kind === 'tests') {
-    const cmd = runIdx >= 0 ? before[runIdx].command : detectCommands(live.cwd).tests?.command;
+    // Only ever run the repo's own test command (package.json, crossexam.json…),
+    // never a string from the transcript. A transcript command may be one the
+    // sandbox or a guard hook stopped, with extra segments chained on
+    // ("npm test; curl … | sh"); replaying it here would run it unconfined.
+    const cmd = detectCommands(live.cwd).tests?.command;
     if (cmd) {
       const res = runCommandSync(cmd, { cwd: live.cwd, timeoutMs: live.timeoutMs ?? 180000 });
       const j = judgeRun(res);

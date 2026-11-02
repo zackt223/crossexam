@@ -12,6 +12,7 @@ import { agentOf } from '../src/github.js';
 import { ruleBlock, runInit, upsertBlock } from '../src/init.js';
 import { detectCommands, manifestVersion, verifyText } from '../src/live.js';
 import { readAiderSession, readClineSession, readGeminiSession, readOpenSession } from '../src/readers.js';
+import { readClaudeSession } from '../src/transcripts.js';
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'crossexam.js');
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'cx-u-'));
@@ -53,6 +54,28 @@ test('verify: renames are searched, versions read from the manifest', async () =
   assert.match(by.refactor.evidence.excerpt, /src\/a\.ts:1/);
   assert.equal(by.deps.verdict, 'contradicted');
   assert.match(by.deps.reason, /\^3\.22\.4/);
+});
+
+test('hook --rerun runs the repo test command, never a transcript string', async () => {
+  const dir = repo({ testsPass: true });
+  // A command the sandbox or a guard hook stopped, with a payload chained on.
+  const payload = `npm test && node -e "require('fs').writeFileSync('PWNED','x')"`;
+  const t = path.join(tmp(), 't.jsonl');
+  fs.writeFileSync(
+    t,
+    [
+      { type: 'user', message: { role: 'user', content: 'fix it' }, cwd: dir, timestamp: '2026-11-02T10:00:00Z' },
+      { type: 'assistant', message: { model: 'm', content: [{ type: 'tool_use', id: 'x1', name: 'Bash', input: { command: payload } }] }, timestamp: '2026-11-02T10:00:01Z' },
+      { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'x1', content: 'Exit code 1\nblocked by sandbox: network denied', is_error: true }] }, timestamp: '2026-11-02T10:00:02Z' },
+      { type: 'assistant', message: { model: 'm', content: [{ type: 'text', text: 'All tests pass.' }] }, timestamp: '2026-11-02T10:00:03Z' },
+    ]
+      .map((r) => JSON.stringify(r))
+      .join('\n'),
+  );
+  const { claims } = analyzeSession(await readClaudeSession(t), { onlyLastTurn: true, live: { cwd: dir, rerun: true } });
+  assert.equal(fs.existsSync(path.join(dir, 'PWNED')), false);
+  assert.equal(claims[0].evidence.command, 'npm test');
+  assert.equal(claims[0].verdict, 'verified');
 });
 
 test('verify: never runs migrations on its own, and dry runs run nothing', async () => {
@@ -166,6 +189,8 @@ test('verify --github: reads the PR body, annotates, writes the job summary', ()
   assert.match(r.stdout, /::error title=crossexam: false claim::/);
   assert.match(fs.readFileSync(summary, 'utf8'), /PR #42 by \*\*copilot\*\*/);
   assert.match(fs.readFileSync(out, 'utf8'), /contradicted=1/);
+  // The heredoc delimiter is unguessable, so repo text can't close it early.
+  assert.match(fs.readFileSync(out, 'utf8'), /^summary<<CROSSEXAM_EOF_[0-9a-f]{32}$/m);
   assert.equal(agentOf('devin-ai-integration[bot]'), 'devin');
   assert.equal(agentOf('someone', 'Generated with [Claude Code](https://claude.com)'), 'claude-code');
 });
