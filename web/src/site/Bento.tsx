@@ -208,7 +208,7 @@ const STACK = [
   ['npm', '#c33'],
   ['pnpm', '#f5a623'],
   ['yarn', '#2c8ebb'],
-  ['bun', '#e8d8b6'],
+  ['bun', '#b8935a'],
   ['vitest', '#6da13f'],
   ['jest', '#99425b'],
   ['pytest', '#0a9edc'],
@@ -219,7 +219,7 @@ const STACK = [
   ['rspec', '#cc342d'],
   ['tsc', '#3178c6'],
   ['eslint', '#7c6cf0'],
-  ['ruff', '#d7ff64'],
+  ['ruff', '#8aa31c'],
   ['mypy', '#2a6db2'],
   ['prisma', '#8fa1b3'],
 ] as const;

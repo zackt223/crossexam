@@ -148,18 +148,20 @@ function Try() {
 
 function WaysIn() {
   return (
-    <section className="block wide" id="agents">
-      <div className="block-head reveal">
-        <span className="eyebrow">Any agent</span>
-        <h2>Everything it takes to trust an agent</h2>
-        <p>crossexam doesn’t need an integration from your agent vendor. It checks claims against your repo, so it works wherever claims get made.</p>
-      </div>
-      <Bento />
-      <div className="setup-wrap reveal">
-        <div className="setup-head">Pick your agent</div>
-        <AgentSetup />
-      </div>
-    </section>
+    <div className="band-light">
+      <section className="block wide" id="agents">
+        <div className="block-head reveal">
+          <span className="eyebrow">Any agent</span>
+          <h2>Everything it takes to trust an agent</h2>
+          <p>crossexam doesn’t need an integration from your agent vendor. It checks claims against your repo, so it works wherever claims get made.</p>
+        </div>
+        <Bento />
+        <div className="setup-wrap reveal">
+          <div className="setup-head">Pick your agent</div>
+          <AgentSetup />
+        </div>
+      </section>
+    </div>
   );
 }
 
