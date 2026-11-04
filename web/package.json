@@ -2,6 +2,8 @@
   "name": "crossexam-web",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
+  "author": "Zack Telsem (https://zacktelsem.com)",
   "type": "module",
   "scripts": {
     "dev": "vite",

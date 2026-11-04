@@ -13,7 +13,9 @@ import { Playground } from './Playground';
 import './site.css';
 import './fx.css';
 
-const WAITLIST = 'mailto:hello@crossexam.dev?subject=crossexam%20for%20teams';
+const REPO = 'https://github.com/zackt223/crossexam';
+const SITE = 'https://zacktelsem.com';
+const LINKEDIN = 'https://www.linkedin.com/in/zackariah-telsem-a8b245246/';
 
 export default function Landing() {
   const root = useRef<HTMLDivElement>(null);
@@ -35,7 +37,7 @@ export default function Landing() {
       <History />
       <RoutingSection />
       <Steps />
-      <Pricing />
+      <OpenSource />
       <Faq />
       <FinalCta />
       <Footer />
@@ -62,10 +64,10 @@ function Nav() {
         <a href="#agents">Any agent</a>
         <a href="#checks">Checks</a>
         <a href="#teams">For teams</a>
-        <a href="#pricing">Pricing</a>
+        <a href="#open-source">Open source</a>
       </nav>
       <div className="nav-cta">
-        <a className="pill-btn ghost hide-sm" href="https://github.com/" target="_blank" rel="noreferrer">
+        <a className="pill-btn ghost hide-sm" href={REPO} target="_blank" rel="noreferrer">
           <GitHub /> Star
         </a>
         <Link className="pill-btn blue" to="/app">
@@ -419,36 +421,54 @@ function Steps() {
   );
 }
 
-function Pricing() {
-  const plans = [
-    { name: 'Free', price: '$0', per: 'forever', items: ['Every agent: MCP tool, AGENTS.md rule, verify', 'GitHub Action for agent PRs', 'Transcript history for 7 agents', 'Runs locally, nothing uploaded'], cta: <CopyCmd cmd="npx crossexam scan" small />, hi: false },
-    { name: 'Team', price: '$24', per: 'per developer / month', items: ['Shared reliability history', 'Review routing and auto-merge policy', 'Dashboard across every repo', 'Every agent, one ledger'], cta: <a className="pill-btn blue wide" href={WAITLIST}>Join the early access list</a>, hi: true },
-    { name: 'Enterprise', price: 'Custom', per: '', items: ['Audit trail and policy controls', 'SOC 2 evidence export', 'SSO and data residency', 'Self-hosted verifier'], cta: <a className="pill-btn ghost wide" href={WAITLIST}>Talk to us</a>, hi: false },
-  ];
+function OpenSource() {
   return (
-    <section className="block" id="pricing">
+    <section className="block" id="open-source">
       <div className="block-head reveal">
-        <h2>Pricing</h2>
-        <p>The verifier is free for every developer. Teams pay for history, routing and the audit trail.</p>
+        <span className="eyebrow">Free and open source</span>
+        <h2>Free forever. MIT licensed.</h2>
+        <p>No accounts, no plans, no upsell. The CLI, the MCP server, the GitHub Action and the dashboard are all open source. Read every line, fork it, ship it.</p>
       </div>
       <div className="plans">
-        {plans.map((p, i) => (
-          <div key={p.name} className={`plan spot reveal${p.hi ? ' hi' : ''}`} style={{ transitionDelay: `${i * 80}ms` }}>
-            <div className="plan-name">
-              {p.name}
-              {p.hi && <span className="plan-tag">Early access</span>}
-            </div>
-            <div className="plan-price">
-              {p.price} <span>{p.per}</span>
-            </div>
-            <ul>
-              {p.items.map((it) => (
-                <li key={it}>{it}</li>
-              ))}
-            </ul>
-            <div className="plan-cta">{p.cta}</div>
+        <div className="plan spot reveal">
+          <div className="plan-name">Read the code</div>
+          <ul>
+            <li>Every check, in plain JavaScript</li>
+            <li>Zero runtime dependencies</li>
+            <li>Issues and pull requests welcome</li>
+          </ul>
+          <div className="plan-cta">
+            <a className="pill-btn blue wide" href={REPO} target="_blank" rel="noreferrer">
+              <GitHub /> Star it on GitHub
+            </a>
           </div>
-        ))}
+        </div>
+        <div className="plan spot reveal" style={{ transitionDelay: '80ms' }}>
+          <div className="plan-name">Run it locally</div>
+          <ul>
+            <li>Works with any agent</li>
+            <li>Nothing leaves your machine</li>
+            <li>The dashboard runs in your browser</li>
+          </ul>
+          <div className="plan-cta">
+            <CopyCmd cmd="npx crossexam scan" small />
+          </div>
+        </div>
+        <div className="plan spot reveal" style={{ transitionDelay: '160ms' }}>
+          <div className="plan-name">Built by Zack Telsem</div>
+          <ul>
+            <li>Questions, ideas or a bug to report</li>
+            <li>Say hi, I read everything</li>
+          </ul>
+          <div className="plan-cta contact-links">
+            <a className="pill-btn ghost wide" href={SITE} target="_blank" rel="noreferrer">
+              zacktelsem.com
+            </a>
+            <a className="pill-btn ghost wide" href={LINKEDIN} target="_blank" rel="noreferrer">
+              LinkedIn
+            </a>
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -456,6 +476,7 @@ function Pricing() {
 
 function Faq() {
   const qa = [
+    ['Is it really free?', 'Yes, all of it, for everyone. crossexam is MIT-licensed open source: no accounts, no paid tier, no telemetry. Use it at work, fork it, build on it.'],
     ['Which agents does it work with?', 'Any of them. An agent that can call an MCP tool, read AGENTS.md, open a pull request or print a summary can be checked, because crossexam verifies claims against your repo instead of trusting the agent. For history, it reads Claude Code, Codex, Gemini CLI, Cline, Roo Code, Kilo Code and Aider transcripts directly, plus an open format any other tool can write.'],
     ['Does my code or transcript leave my machine?', 'Not with the CLI. It reads the transcripts your agents already write to disk, checks them locally, and prints a report. The dashboard loads that report in your browser.'],
     ['How does it decide a claim is false?', 'Each claim kind has its own evidence. “Tests pass” needs a test run after the last edit that exited 0 and printed no failures. “All callers updated” needs the old name to be gone from the repo. A run that hid its exit code behind a pipe is flagged as inconclusive, not trusted.'],
@@ -501,6 +522,13 @@ function Footer() {
           <Wordmark />
         </span>
         <span className="muted">The neutral verifier for coding agents.</span>
+        <span className="muted">
+          Free and open source (MIT). Built by{' '}
+          <a className="footer-me" href={SITE} target="_blank" rel="noreferrer">
+            Zack Telsem
+          </a>
+          .
+        </span>
       </div>
       <div className="footer-cols">
         <div>
@@ -508,12 +536,21 @@ function Footer() {
           <a href="#try">Try it</a>
           <a href="#checks">Checks</a>
           <Link to="/app">Dashboard</Link>
-          <a href="#pricing">Pricing</a>
+          <a href={REPO} target="_blank" rel="noreferrer">
+            Source code
+          </a>
         </div>
         <div>
-          <span className="footer-h">Company</span>
-          <a href={WAITLIST}>Contact</a>
-          <a href="#neutral">Why neutral</a>
+          <span className="footer-h">Contact</span>
+          <a href={SITE} target="_blank" rel="noreferrer">
+            zacktelsem.com
+          </a>
+          <a href={LINKEDIN} target="_blank" rel="noreferrer">
+            LinkedIn
+          </a>
+          <a href={`${REPO}/issues`} target="_blank" rel="noreferrer">
+            Report an issue
+          </a>
         </div>
       </div>
     </footer>

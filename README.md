@@ -4,9 +4,22 @@
 
 crossexam cross-examines what coding agents claim (“all tests pass”, “every caller updated”, “migration applied”, “bumped zod to 3.23.8”) against what actually happened in the repo. It doesn't trust any agent, and it doesn't need any agent's cooperation, so it works with all of them.
 
+Free and open source under the [MIT license](LICENSE). No accounts, no paid tier, no telemetry: everything runs on your machine.
+
+## Getting started
+
+```bash
+git clone https://github.com/zackt223/crossexam
+cd crossexam
+node cli/bin/crossexam.js scan          # how often have your agents been wrong?
+node cli/bin/crossexam.js init --mcp    # in any repo: make every agent there check itself
+```
+
+Node 18.17+ and no dependencies. Once it's on npm, every `node cli/bin/crossexam.js` below becomes `npx crossexam`.
+
 ```
 cli/      the verifier: a zero-dependency Node CLI, MCP server, Claude Code hook and GitHub Action entry point
-web/      crossexam.dev (landing page) and the team dashboard at /app
+web/      the landing page and the team dashboard at /app
 docs/     the open transcript format
 action.yml
 ```
@@ -66,7 +79,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: npm ci                          # whatever your checks need
-      - uses: zackt223/crossexam@master      # while the repo is private, only your own repos can use it
+      - uses: zackt223/crossexam@master
         with:
           fail-on: contradicted
 ```
@@ -86,7 +99,7 @@ It annotates the run, writes a job summary, and exposes `ok`, `contradicted`, `a
 Only assertions count. “I'll make sure tests pass”, “tests don't pass yet”, questions, and claims inside quotation marks are ignored.
 
 ```bash
-cd cli && npm test     # 23 tests
+cd cli && npm test     # 24 tests
 ```
 
 ## The web app
@@ -97,10 +110,19 @@ cd web && npm install && npm run dev     # http://localhost:5291
 
 `/` is the landing page. `/app` is the dashboard: agents, reliability matrix, activity, claims, review routing with a live policy, and an audit trail with SOC 2 evidence export. It starts on demo data. Drop in a `scan --json` report to see your own numbers; the report stays in your browser.
 
-## Before launch
+## Contributing
 
-- [ ] Buy the domain (`crossexam.dev` is assumed everywhere) and point the `WAITLIST` mailto in `web/src/site/Landing.tsx` at a real inbox or form
-- [ ] Put the real GitHub URL in the nav's Star button, and make the repo public, or split out a public action repo, so others can `uses:` it
-- [ ] `npm publish` from `cli/` so `npx crossexam` works (until then `init` writes `node "<path>"` commands)
-- [ ] Add `web/public/og.png` (1200×630) for link previews
-- [ ] Deploy `web/` (Vercel: the included `vercel.json` rewrites `/app` to the SPA)
+Issues and pull requests are welcome. New transcript readers are the most useful thing to add: if your agent writes logs crossexam can't read yet, open an issue with a redacted sample, or send a reader in `cli/src/readers.js` with a fixture test in `cli/test/`.
+
+```bash
+cd cli && npm test                      # the CLI's tests, no install needed
+cd web && npm install && npm run build  # typecheck and build the site
+```
+
+## License
+
+[MIT](LICENSE) © Zack Telsem
+
+## Author
+
+Built by **Zack Telsem**: [zacktelsem.com](https://zacktelsem.com) · [LinkedIn](https://www.linkedin.com/in/zackariah-telsem-a8b245246/)

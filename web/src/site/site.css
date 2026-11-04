@@ -190,7 +190,7 @@ html, body { margin: 0; background: #ffffff; }
 .step-t { font-weight: 600; font-size: 17px; }
 .step-d { color: var(--ink-3); font-size: 14.5px; flex: 1; margin-bottom: 10px; }
 
-/* pricing */
+/* open-source cards */
 .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: stretch; }
 .plan { background: var(--card); border-radius: 24px; padding: 26px; display: flex; flex-direction: column; }
 .plan.hi { box-shadow: 0 0 0 1.5px rgba(47, 107, 255, .55), 0 30px 70px -34px rgba(47, 107, 255, .45); }
@@ -202,6 +202,9 @@ html, body { margin: 0; background: #ffffff; }
 .plan li { color: var(--ink-2); font-size: 14.5px; padding-left: 22px; position: relative; }
 .plan li::before { content: '✓'; position: absolute; left: 0; color: var(--green); font-size: 13px; }
 .plan-cta .cmd { width: 100%; justify-content: space-between; }
+.contact-links { display: flex; flex-direction: column; gap: 8px; }
+.footer-me { color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: #cfcfd5; }
+.footer-me:hover { color: var(--ink); }
 
 /* faq */
 .faq-list { max-width: 720px; margin: 0 auto; }

@@ -3,3 +3,9 @@ dist/
 *.log
 crossexam-report.json
 .DS_Store
+
+# local editor/tool settings and private notes
+.claude/
+.vscode/
+.idea/
+LAUNCH.md

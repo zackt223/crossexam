@@ -1,6 +1,6 @@
 name: crossexam
 description: Check what a coding agent claims in its pull request (tests pass, callers updated, versions bumped) against the checked-out branch.
-author: crossexam
+author: Zack Telsem
 branding:
   icon: check-circle
   color: blue
