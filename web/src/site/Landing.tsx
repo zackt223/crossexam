@@ -5,6 +5,7 @@ import { LogoMark, Wordmark } from '../components/Logo';
 import { demoClaims } from '../data/demo';
 import { KIND_LABEL, agentLabel, groupBy, headlineInsight, tally, type ClaimKind } from '../data/model';
 import { AgentSetup } from './AgentSetup';
+import { Bento } from './Bento';
 import { onFirstView, useReveal, useSpotlight } from './fx';
 import { Ghost } from './Ghost';
 import { HeroDemo } from './HeroDemo';
@@ -145,35 +146,15 @@ function Try() {
   );
 }
 
-const WAYS_IN: { title: string; sub: string; cmd: string; who: string[] }[] = [
-  { title: 'A tool the agent calls', sub: 'An MCP server with one job: check the summary before the agent says done.', cmd: 'npx crossexam init --mcp', who: ['Cursor', 'Copilot', 'Windsurf', 'Codex', 'Gemini CLI', 'Claude Code', 'Cline', 'Zed', 'any MCP client'] },
-  { title: 'A rule every agent reads', sub: 'One block in AGENTS.md tells any agent in the repo to verify before it reports.', cmd: 'npx crossexam init', who: ['Codex', 'Cursor', 'Copilot', 'Jules', 'Amp', 'opencode', 'CLAUDE.md', 'GEMINI.md'] },
-  { title: 'A check on every agent PR', sub: 'Cloud agents write their claims in the PR description. A GitHub Action re-checks them on the branch.', cmd: 'crossexam verify --github', who: ['Copilot coding agent', 'Codex', 'Devin', 'Jules', 'Cursor background agents', 'Claude'] },
-  { title: 'Any summary, anywhere', sub: 'Pipe in whatever an agent said. crossexam re-runs your tests, build and types, and greps the repo.', cmd: 'crossexam verify "all tests pass"', who: ['CI jobs', 'git hooks', 'scripts', 'internal agents'] },
-];
-
 function WaysIn() {
   return (
-    <section className="block" id="agents">
+    <section className="block wide" id="agents">
       <div className="block-head reveal">
         <span className="eyebrow">Any agent</span>
-        <h2>Four ways in. No agent left unchecked.</h2>
+        <h2>Everything it takes to trust an agent</h2>
         <p>crossexam doesn’t need an integration from your agent vendor. It checks claims against your repo, so it works wherever claims get made.</p>
       </div>
-      <div className="ways">
-        {WAYS_IN.map((w, i) => (
-          <article key={w.title} className="way spot reveal" style={{ transitionDelay: `${i * 70}ms` }}>
-            <div className="way-title">{w.title}</div>
-            <div className="way-sub">{w.sub}</div>
-            <code className="way-cmd">{w.cmd}</code>
-            <div className="way-who">
-              {w.who.map((a) => (
-                <span key={a}>{a}</span>
-              ))}
-            </div>
-          </article>
-        ))}
-      </div>
+      <Bento />
       <div className="setup-wrap reveal">
         <div className="setup-head">Pick your agent</div>
         <AgentSetup />
