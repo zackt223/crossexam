@@ -37,7 +37,7 @@ export function LogoMark({ size = 28, flat = false }: { size?: number; flat?: bo
   );
 }
 
-export function Wordmark({ dim = 'rgba(255,255,255,.45)' }: { dim?: string }) {
+export function Wordmark({ dim = 'rgba(22,22,26,.4)' }: { dim?: string }) {
   return (
     <span style={{ fontWeight: 600, letterSpacing: '-0.02em', fontSize: 15 }}>
       crossexam<span style={{ color: dim, fontWeight: 500 }}>.dev</span>

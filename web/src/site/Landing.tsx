@@ -571,7 +571,7 @@ function DotSphere() {
   return (
     <svg className="sphere" viewBox="0 0 100 100" aria-hidden="true">
       {dots.map((d, i) => (
-        <circle key={i} cx={d.x} cy={d.y} r={d.r} fill="#fff" opacity={d.o} />
+        <circle key={i} cx={d.x} cy={d.y} r={d.r} fill="#2f6bff" opacity={d.o * 0.55} />
       ))}
     </svg>
   );
