@@ -1,9 +1,10 @@
 {
-  "name": "crossexam",
+  "name": "crossexamdev",
   "version": "0.2.0",
   "description": "Cross-examine what any coding agent claims: verify CLI, MCP server, GitHub Action and transcript history for Claude Code, Codex, Gemini CLI, Cline, Aider and more.",
   "type": "module",
   "bin": {
+    "crossexamdev": "bin/crossexam.js",
     "crossexam": "bin/crossexam.js"
   },
   "files": [

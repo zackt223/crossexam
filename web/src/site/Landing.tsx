@@ -102,7 +102,7 @@ function Hero() {
           crossexam cross-examines every claim your coding agent makes against what actually ran. Tests, refactors, migrations, dependency bumps. Claude Code, Codex, Cursor, Copilot, or whatever you run next.
         </p>
         <div className="hero-ctas">
-          <CopyCmd cmd="npx crossexam scan" />
+          <CopyCmd cmd="npx crossexamdev scan" />
           <a className="pill-btn blue lg" href="#try">
             Try it on a claim ↓
           </a>
@@ -398,9 +398,9 @@ function RoutingSection() {
 
 function Steps() {
   const steps = [
-    { n: 1, t: 'See your own numbers', d: 'Scan the agent transcripts already on your machine. Nothing leaves it.', cmd: 'npx crossexam scan' },
-    { n: 2, t: 'Put it in the loop', d: 'Every agent in the repo gets the AGENTS.md rule and the MCP tool, so a false “done” is caught before you read it.', cmd: 'npx crossexam init --mcp' },
-    { n: 3, t: 'Bring the team', d: 'Export a report, drop it on the dashboard, and see reliability by agent, model and repo.', cmd: 'npx crossexam scan --json' },
+    { n: 1, t: 'See your own numbers', d: 'Scan the agent transcripts already on your machine. Nothing leaves it.', cmd: 'npx crossexamdev scan' },
+    { n: 2, t: 'Put it in the loop', d: 'Every agent in the repo gets the AGENTS.md rule and the MCP tool, so a false “done” is caught before you read it.', cmd: 'npx crossexamdev init --mcp' },
+    { n: 3, t: 'Bring the team', d: 'Export a report, drop it on the dashboard, and see reliability by agent, model and repo.', cmd: 'npx crossexamdev scan --json' },
   ];
   return (
     <section className="block">
@@ -451,7 +451,7 @@ function OpenSource() {
             <li>The dashboard runs in your browser</li>
           </ul>
           <div className="plan-cta">
-            <CopyCmd cmd="npx crossexam scan" small />
+            <CopyCmd cmd="npx crossexamdev scan" small />
           </div>
         </div>
         <div className="plan spot reveal" style={{ transitionDelay: '160ms' }}>
@@ -508,7 +508,7 @@ function FinalCta() {
       <Ghost size={88} />
       <h2>Stop merging “done”.</h2>
       <p>Find out how often your agents are right. It takes one command.</p>
-      <CopyCmd cmd="npx crossexam scan" />
+      <CopyCmd cmd="npx crossexamdev scan" />
     </section>
   );
 }

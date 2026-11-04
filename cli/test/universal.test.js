@@ -162,7 +162,7 @@ test('init: writes the AGENTS.md rule and MCP configs, idempotently', () => {
   fs.writeFileSync(path.join(dir, 'AGENTS.md'), '# House rules\n\nUse tabs.\n');
   fs.mkdirSync(path.join(dir, '.cursor'));
   fs.writeFileSync(path.join(dir, '.cursor', 'mcp.json'), JSON.stringify({ mcpServers: { other: { command: 'x' } } }));
-  const first = runInit({ cwd: dir, cliCmd: 'npx -y crossexam', serverCmd: ['npx', '-y', 'crossexam', 'mcp'], mcp: true });
+  const first = runInit({ cwd: dir, cliCmd: 'npx -y crossexamdev', serverCmd: ['npx', '-y', 'crossexamdev', 'mcp'], mcp: true });
   const agents = fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8');
   assert.match(agents, /^# House rules\n\nUse tabs\./);
   assert.match(agents, /verify_claims/);
@@ -170,7 +170,7 @@ test('init: writes the AGENTS.md rule and MCP configs, idempotently', () => {
   assert.deepEqual(Object.keys(cursor.mcpServers).sort(), ['crossexam', 'other']);
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.vscode', 'mcp.json'), 'utf8')).servers.crossexam.type, 'stdio');
   assert.ok(first.some((c) => c.file === '.mcp.json' && c.action === 'created'));
-  const second = runInit({ cwd: dir, cliCmd: 'npx -y crossexam', serverCmd: ['npx', '-y', 'crossexam', 'mcp'], mcp: true });
+  const second = runInit({ cwd: dir, cliCmd: 'npx -y crossexamdev', serverCmd: ['npx', '-y', 'crossexamdev', 'mcp'], mcp: true });
   assert.ok(second.every((c) => c.action === 'unchanged'));
   const block = ruleBlock('crossexam');
   assert.equal(upsertBlock(upsertBlock('a\n', block), block).match(/crossexam:start/g).length, 1);

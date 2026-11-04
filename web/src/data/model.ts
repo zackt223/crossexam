@@ -139,6 +139,6 @@ export function timeAgo(iso: string, now = Date.now()) {
 export function parseReport(text: string): Claim[] {
   const j = JSON.parse(text);
   const claims = Array.isArray(j) ? j : j?.claims;
-  if (!Array.isArray(claims)) throw new Error('That file has no "claims" list. Make one with: npx crossexam scan --json');
+  if (!Array.isArray(claims)) throw new Error('That file has no "claims" list. Make one with: npx crossexamdev scan --json');
   return claims.filter((c) => c && c.verdict && c.kind && c.agent);
 }

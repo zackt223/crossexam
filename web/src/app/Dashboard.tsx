@@ -174,7 +174,7 @@ export default function Dashboard() {
             <div>
               <div className="import-title">{data.source === 'demo' ? 'Load your own report' : 'Load another report'}</div>
               <div className="import-note">
-                <code>npx crossexam scan --json</code>, then drop the file here
+                <code>npx crossexamdev scan --json</code>, then drop the file here
               </div>
             </div>
           </div>

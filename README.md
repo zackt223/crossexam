@@ -9,13 +9,11 @@ Free and open source under the [MIT license](LICENSE). No accounts, no paid tier
 ## Getting started
 
 ```bash
-git clone https://github.com/zackt223/crossexam
-cd crossexam
-node cli/bin/crossexam.js scan          # how often have your agents been wrong?
-node cli/bin/crossexam.js init --mcp    # in any repo: make every agent there check itself
+npx crossexamdev scan          # how often have your agents been wrong?
+npx crossexamdev init --mcp    # in any repo: make every agent there check itself
 ```
 
-Node 18.17+ and no dependencies. Once it's on npm, every `node cli/bin/crossexam.js` below becomes `npx crossexam`.
+Node 18.17+ and no dependencies. The npm package is `crossexamdev` (the bare name was taken); once installed, the command is also available as `crossexam`, which is what the examples below use. To run from source instead: `git clone https://github.com/zackt223/crossexam && node crossexam/cli/bin/crossexam.js scan`.
 
 ```
 cli/      the verifier: a zero-dependency Node CLI, MCP server, Claude Code hook and GitHub Action entry point

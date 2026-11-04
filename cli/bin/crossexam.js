@@ -251,7 +251,8 @@ function install() {
 /** How this copy of crossexam should be invoked by agents and configs. */
 function selfCommands() {
   const self = fileURLToPath(import.meta.url).replace(/\\/g, '/');
-  if (/\/_npx\/|\/node_modules\/crossexam\//.test(self)) return { cli: 'npx -y crossexam', server: ['npx', '-y', 'crossexam', 'mcp'] };
+  // Published on npm as "crossexamdev" (the bare name was taken).
+  if (/\/_npx\/|\/node_modules\/crossexamdev\//.test(self)) return { cli: 'npx -y crossexamdev', server: ['npx', '-y', 'crossexamdev', 'mcp'] };
   return { cli: `node "${self}"`, server: ['node', self, 'mcp'] };
 }
 
