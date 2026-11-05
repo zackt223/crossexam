@@ -21,7 +21,7 @@ export function Bento() {
       <Tile title="A check on every PR" sub={<>Cloud agents’ pull requests get <b>re-checked on the branch</b>, not just read.</>}>
         <RunCheck />
       </Tile>
-      <Tile title="Every repo, one view" sub={<>See <b>which repo, which agent, which claim</b> from a single dashboard.</>}>
+      <Tile title="Every repo, one view" sub={<>See <b>which repo, which agent, which claim</b> from a single report.</>}>
         <RepoSwitch />
       </Tile>
       <Tile className="span2" title="Fits the stack you already have" sub={<>It runs <b>your own tests, builds and linters</b>. Nothing to rewrite, nothing to host.</>}>

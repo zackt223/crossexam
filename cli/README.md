@@ -13,6 +13,8 @@ npx crossexamdev mcp                           # MCP server with a verify_claims
 
 Node 18.17+, zero dependencies, runs entirely on your machine. Once installed, the command is also available as `crossexam`.
 
-Full docs, the GitHub Action and the dashboard: https://github.com/zackt223/crossexam
+Site: https://zackt223.github.io/crossexam/
+
+Full docs and the GitHub Action: https://github.com/zackt223/crossexam
 
 Free and open source under the MIT license. Built by [Zack Telsem](https://zacktelsem.com).

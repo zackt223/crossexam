@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { DEFAULT_POLICY, routeWith } from '../app/Routing';
 import { LogoMark, Wordmark } from '../components/Logo';
 import { demoClaims } from '../data/demo';
@@ -70,9 +69,9 @@ function Nav() {
         <a className="pill-btn ghost hide-sm" href={REPO} target="_blank" rel="noreferrer">
           <GitHub /> Star
         </a>
-        <Link className="pill-btn blue" to="/app">
-          Open dashboard
-        </Link>
+        <a className="pill-btn blue" href="#try">
+          Try it
+        </a>
       </div>
     </header>
   );
@@ -400,7 +399,7 @@ function Steps() {
   const steps = [
     { n: 1, t: 'See your own numbers', d: 'Scan the agent transcripts already on your machine. Nothing leaves it.', cmd: 'npx crossexamdev scan' },
     { n: 2, t: 'Put it in the loop', d: 'Every agent in the repo gets the AGENTS.md rule and the MCP tool, so a false “done” is caught before you read it.', cmd: 'npx crossexamdev init --mcp' },
-    { n: 3, t: 'Bring the team', d: 'Export a report, drop it on the dashboard, and see reliability by agent, model and repo.', cmd: 'npx crossexamdev scan --json' },
+    { n: 3, t: 'Bring the team', d: 'Export a JSON report and see reliability by agent, model and repo.', cmd: 'npx crossexamdev scan --json' },
   ];
   return (
     <section className="block">
@@ -427,7 +426,7 @@ function OpenSource() {
       <div className="block-head reveal">
         <span className="eyebrow">Free and open source</span>
         <h2>Free forever. MIT licensed.</h2>
-        <p>No accounts, no plans, no upsell. The CLI, the MCP server, the GitHub Action and the dashboard are all open source. Read every line, fork it, ship it.</p>
+        <p>No accounts, no plans, no upsell. The CLI, the MCP server and the GitHub Action are all open source. Read every line, fork it, ship it.</p>
       </div>
       <div className="plans">
         <div className="plan spot reveal">
@@ -448,7 +447,7 @@ function OpenSource() {
           <ul>
             <li>Works with any agent</li>
             <li>Nothing leaves your machine</li>
-            <li>The dashboard runs in your browser</li>
+            <li>Zero setup, one command</li>
           </ul>
           <div className="plan-cta">
             <CopyCmd cmd="npx crossexamdev scan" small />
@@ -478,7 +477,7 @@ function Faq() {
   const qa = [
     ['Is it really free?', 'Yes, all of it, for everyone. crossexam is MIT-licensed open source: no accounts, no paid tier, no telemetry. Use it at work, fork it, build on it.'],
     ['Which agents does it work with?', 'Any of them. An agent that can call an MCP tool, read AGENTS.md, open a pull request or print a summary can be checked, because crossexam verifies claims against your repo instead of trusting the agent. For history, it reads Claude Code, Codex, Gemini CLI, Cline, Roo Code, Kilo Code and Aider transcripts directly, plus an open format any other tool can write.'],
-    ['Does my code or transcript leave my machine?', 'Not with the CLI. It reads the transcripts your agents already write to disk, checks them locally, and prints a report. The dashboard loads that report in your browser.'],
+    ['Does my code or transcript leave my machine?', 'Not with the CLI. It reads the transcripts your agents already write to disk, checks them locally, and prints a report.'],
     ['How does it decide a claim is false?', 'Each claim kind has its own evidence. “Tests pass” needs a test run after the last edit that exited 0 and printed no failures. “All callers updated” needs the old name to be gone from the repo. A run that hid its exit code behind a pipe is flagged as inconclusive, not trusted.'],
     ['Will it run my migrations?', 'Never on its own. It re-runs the tests, builds, typechecks and linters it finds in your repo. Migrations are only checked through a read-only status command you name in crossexam.json.'],
     ['Will it block my agent forever?', 'No. The Claude Code hook sends a turn back once. If the agent still can’t back the claim, crossexam tells you instead of looping. Through MCP, the agent asks and decides for itself.'],
@@ -535,7 +534,6 @@ function Footer() {
           <span className="footer-h">Product</span>
           <a href="#try">Try it</a>
           <a href="#checks">Checks</a>
-          <Link to="/app">Dashboard</Link>
           <a href={REPO} target="_blank" rel="noreferrer">
             Source code
           </a>

@@ -4,6 +4,8 @@
 
 crossexam cross-examines what coding agents claim (“all tests pass”, “every caller updated”, “migration applied”, “bumped zod to 3.23.8”) against what actually happened in the repo. It doesn't trust any agent, and it doesn't need any agent's cooperation, so it works with all of them.
 
+Site: **https://zackt223.github.io/crossexam/**
+
 Free and open source under the [MIT license](LICENSE). No accounts, no paid tier, no telemetry: everything runs on your machine.
 
 ## Getting started
@@ -17,7 +19,7 @@ Node 18.17+ and no dependencies. The npm package is `crossexamdev` (the bare nam
 
 ```
 cli/      the verifier: a zero-dependency Node CLI, MCP server, Claude Code hook and GitHub Action entry point
-web/      the landing page and the team dashboard at /app
+web/      the landing page (deployed to GitHub Pages)
 docs/     the open transcript format
 action.yml
 ```
@@ -106,7 +108,7 @@ cd cli && npm test     # 24 tests
 cd web && npm install && npm run dev     # http://localhost:5291
 ```
 
-`/` is the landing page. `/app` is the dashboard: agents, reliability matrix, activity, claims, review routing with a live policy, and an audit trail with SOC 2 evidence export. It starts on demo data. Drop in a `scan --json` report to see your own numbers; the report stays in your browser.
+Pushes to `master` that touch `web/` deploy the site to GitHub Pages (`.github/workflows/pages.yml`). The team dashboard in `web/src/app` is not linked from the site for now.
 
 ## Contributing
 
