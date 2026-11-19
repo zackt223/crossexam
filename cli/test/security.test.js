@@ -206,6 +206,26 @@ test('symlinks: one escaping the repo is neither mutated nor copied; one inside 
   }
 });
 
+test('a copy made through a linked or aliased path works inside the copy, never in the real repo', (t) => {
+  const dir = fixture();
+  const alias = path.join(path.dirname(dir), `${path.basename(dir)}-alias`);
+  try {
+    fs.symlinkSync(dir, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  } catch {
+    return t.skip('cannot create a directory link here');
+  }
+  const copy = createCopy(path.join(alias, 'src'));
+  try {
+    const rel = path.relative(copy.root, copy.dir);
+    assert.ok(rel && !rel.startsWith('..') && !path.isAbsolute(rel), `copy.dir ${copy.dir} is outside ${copy.root}`);
+    assert.ok(fs.existsSync(path.join(copy.dir, 'math.js')));
+    assert.notEqual(fs.realpathSync(copy.dir), fs.realpathSync(path.join(dir, 'src')));
+  } finally {
+    copy.dispose();
+    fs.unlinkSync(alias);
+  }
+});
+
 // ---------- isolation policy (all platforms) ----------
 
 test('a repository config cannot turn the sandbox off', () => {
@@ -224,7 +244,11 @@ test('auto refuses without a backend unless the human opts in, and an opt-in is 
   delete process.env.CROSSEXAM_ALLOW_UNSANDBOXED;
   try {
     const r = await assessStrength({ cwd: dir, cache: false, testCommand: TEST_CMD });
-    if (BACKEND) assert.equal(r.isolation.method, BACKEND);
+    if (BACKEND) {
+      // auto takes the first backend that works, which need not be the one this job tests
+      assert.equal(r.isolation.sandboxed, true);
+      assert.notEqual(r.isolation.method, 'none');
+    }
     else {
       assert.equal(r.mutants.length, 0, 'nothing ran');
       assert.equal(r.execution.testRuns, 0);
@@ -261,10 +285,11 @@ test('credential-like environment variables are not visible to tests, sandboxed 
 
 const PROBE = `
 const fs = require('fs'), net = require('net'), path = require('path');
-const [canary, outside, port] = process.argv.slice(1);
+const [canary, outside, repoFile, port] = process.argv.slice(2);
 const out = {};
 try { fs.readFileSync(canary, 'utf8'); out.readHome = 'ALLOWED'; } catch (e) { out.readHome = e.code; }
 try { fs.writeFileSync(outside, 'x'); out.writeOutside = 'ALLOWED'; } catch (e) { out.writeOutside = e.code; }
+try { fs.writeFileSync(repoFile, 'MUTATED'); out.writeRepo = 'ALLOWED'; } catch (e) { out.writeRepo = e.code; }
 try { fs.writeFileSync('inside.txt', 'x'); out.writeInside = 'ALLOWED'; } catch (e) { out.writeInside = e.code; }
 const s = net.connect({ host: '127.0.0.1', port: Number(port) });
 const done = (v) => { out.network = v; console.log(JSON.stringify(out)); process.exit(0); };
@@ -282,13 +307,22 @@ test('sandbox: no reading the home folder, no writing outside the copy, no netwo
   await new Promise((r) => server.on('listening', r));
   const copy = createCopy(dir);
   try {
-    const r = await runIsolated(`node probe.cjs "${canary}" "${outside}" ${server.address().port}`, { copy, cwd: copy.dir, timeoutMs: 20000, method: BACKEND, limits: LIMITS });
-    const res = JSON.parse(r.output.trim().split('\n').pop());
+    const repoFile = path.join(dir, 'src', 'math.js');
+    const before = fs.readFileSync(repoFile, 'utf8');
+    const r = await runIsolated(`node probe.cjs "${canary}" "${outside}" "${repoFile}" ${server.address().port}`, { copy, cwd: copy.dir, timeoutMs: 20000, method: BACKEND, limits: LIMITS });
+    let res;
+    try {
+      res = JSON.parse(r.output.trim().split('\n').pop());
+    } catch {
+      assert.fail(`the probe did not report (exit ${r.exitCode}):\n${r.output.slice(-2000)}`);
+    }
     assert.equal(res.writeInside, 'ALLOWED', 'positive control: the probe really ran inside the copy');
     assert.notEqual(res.readHome, 'ALLOWED', 'home folder readable');
-    assert.notEqual(res.writeOutside, 'ALLOWED', 'wrote outside the copy');
     assert.notEqual(res.network, 'ALLOWED', 'network reachable');
-    assert.equal(fs.existsSync(outside), false);
+    // bwrap and docker give the sandbox a throwaway /tmp, so a write there can
+    // "succeed" without ever reaching the host. The host side is what counts.
+    assert.equal(fs.existsSync(outside), false, 'a write outside the copy reached the host');
+    assert.equal(fs.readFileSync(repoFile, 'utf8'), before, 'the real repository was written from inside the sandbox');
   } finally {
     copy.dispose();
     server.close();

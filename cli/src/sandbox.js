@@ -133,15 +133,27 @@ export function isInside(root, p) {
  * config lookups walk up through the same parents the real repo has.
  * @returns {{dir: string, root: string, rel: string, top: string, depDirs: string[], skippedLinks: string[], files: number, dispose: () => {removed: boolean, path: string}}}
  */
+function realPath(p) {
+  try {
+    return fs.realpathSync.native(path.resolve(p));
+  } catch {
+    return path.resolve(p);
+  }
+}
+
 export function createCopy(cwd, { linkDeps = true, copyDir } = {}) {
-  cwd = path.resolve(cwd);
+  // Resolve both ends fully: git reports the real path (macOS /private/var,
+  // Windows long names), and a relative path between a real and an aliased
+  // form would climb out of the copy and land back in the user's repo.
+  cwd = realPath(cwd);
   let top = cwd;
   try {
-    top = path.resolve(git(cwd, ['rev-parse', '--show-toplevel']).trim());
+    top = realPath(git(cwd, ['rev-parse', '--show-toplevel']).trim());
   } catch {
     /* not a git repo: the folder itself is the root */
   }
   const rel = path.relative(top, cwd);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) throw new Error(`Cannot place ${cwd} inside its checkout ${top}; refusing to make a copy.`);
   const root = makeCopyDir(top, copyDir);
   fs.writeFileSync(path.join(root, MANIFEST), JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString(), source: top }));
   let result = null;
@@ -266,9 +278,9 @@ export function safeRemove(root) {
 
 /** Remove copies left by runs that crashed or were killed (their owner process is gone). */
 export function sweepStaleCopies(cwd) {
-  let top = path.resolve(cwd);
+  let top = realPath(cwd);
   try {
-    top = path.resolve(git(cwd, ['rev-parse', '--show-toplevel']).trim());
+    top = realPath(git(cwd, ['rev-parse', '--show-toplevel']).trim());
   } catch {}
   const prefix = `.${path.basename(top)}${COPY_TAG}`;
   const removed = [];
