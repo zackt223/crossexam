@@ -144,7 +144,7 @@ test('MCP server: initialize, list tools, verify a summary', async () => {
   child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
 
   const list = await call(2, 'tools/list', {});
-  assert.deepEqual(list.result.tools.map((t) => t.name), ['verify_claims', 'list_checks']);
+  assert.deepEqual(list.result.tools.map((t) => t.name), ['verify_claims', 'assess_test_strength', 'list_checks']);
 
   const res = await call(3, 'tools/call', { name: 'verify_claims', arguments: { summary: 'Done. All tests pass.' } });
   assert.equal(res.result.structuredContent.ok, false);

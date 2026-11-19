@@ -15,6 +15,21 @@ inputs:
   timeout:
     description: Seconds allowed per check command
     default: "600"
+  mutate:
+    description: "true to also grade test strength: plant small defects in the PR's changed lines and check the tests notice them (use actions/checkout with fetch-depth: 0)"
+    default: "false"
+  mutate-max:
+    description: Most mutants to run
+    default: "25"
+  mutate-budget:
+    description: Seconds to spend running mutants
+    default: "600"
+  mutate-isolation:
+    description: "Sandbox for mutant test runs: auto (default), bwrap, docker. On Linux runners the action installs bubblewrap when needed."
+    default: auto
+  mutate-unsandboxed:
+    description: "true to allow mutant runs without a sandbox if none works. The PR's code then runs with the job's permissions and network; only for trusted PRs."
+    default: "false"
 
 outputs:
   ok:
@@ -26,6 +41,12 @@ outputs:
   agent:
     description: The agent that opened the PR, when recognisable (copilot, codex, devin, jules, cursor, claude-code)
     value: ${{ steps.verify.outputs.agent }}
+  mutation-score:
+    description: Share of planted defects the tests caught (0 to 1), when mutate is on and enough mutants ran
+    value: ${{ steps.verify.outputs.mutation-score }}
+  mutation-rating:
+    description: strong, moderate, weak or inconclusive (separate from the claim verdicts)
+    value: ${{ steps.verify.outputs.mutation-rating }}
   summary:
     description: Markdown summary, ready to post as a PR comment
     value: ${{ steps.verify.outputs.summary }}
@@ -33,7 +54,23 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Sandbox for mutation testing
+      if: inputs.mutate == 'true' && runner.os == 'Linux' && (inputs.mutate-isolation == 'auto' || inputs.mutate-isolation == 'bwrap')
+      shell: bash
+      run: |
+        if ! command -v bwrap >/dev/null; then sudo apt-get install -y -q bubblewrap >/dev/null || true; fi
+        # Ubuntu 24.04 blocks unprivileged user namespaces through AppArmor; allow them on this throwaway runner.
+        if ! bwrap --ro-bind / / --unshare-all true 2>/dev/null; then sudo sysctl -qw kernel.apparmor_restrict_unprivileged_userns=0 || true; fi
     - id: verify
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      run: node "${{ github.action_path }}/cli/bin/crossexam.js" verify --github --fail-on "${{ inputs.fail-on }}" --timeout "${{ inputs.timeout }}"
+      env:
+        CROSSEXAM_MUTATE: ${{ inputs.mutate }}
+        CROSSEXAM_MUTATE_MAX: ${{ inputs.mutate-max }}
+        CROSSEXAM_MUTATE_BUDGET: ${{ inputs.mutate-budget }}
+        CROSSEXAM_MUTATE_ISOLATION: ${{ inputs.mutate-isolation }}
+        CROSSEXAM_ALLOW_UNSANDBOXED: ${{ inputs.mutate-unsandboxed == 'true' && '1' || '' }}
+      run: |
+        extra=()
+        if [ "$CROSSEXAM_MUTATE" = "true" ]; then extra=(--mutate --max "$CROSSEXAM_MUTATE_MAX" --budget "$CROSSEXAM_MUTATE_BUDGET" --isolation "$CROSSEXAM_MUTATE_ISOLATION"); fi
+        node "${{ github.action_path }}/cli/bin/crossexam.js" verify --github --fail-on "${{ inputs.fail-on }}" --timeout "${{ inputs.timeout }}" "${extra[@]}"

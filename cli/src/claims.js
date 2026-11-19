@@ -107,6 +107,24 @@ function subjectOf(kind, s) {
   return undefined;
 }
 
+// "I implemented X", "fixed the bug in Y", "added support for Z". These aren't
+// factual claims crossexam can verify, so they never get a verdict and never
+// count in reliability stats. They only trigger a test-strength assessment.
+const WORK = /\b(?:implemented|fixed|added|built|wrote|rewrote|refactored|resolved|handled|patched|corrected|introduced|completed)\b/i;
+
+/** Sentences asserting that work was done (implemented / fixed / added). */
+export function detectWorkClaims(text) {
+  const found = [];
+  for (const s of sentences(text)) {
+    const hit = s.match(WORK);
+    if (!hit) continue;
+    const lead = s.slice(Math.max(0, hit.index - 60), hit.index);
+    if (HEDGE.test(lead) || NEGATION.test(lead.slice(-30)) || /\?\s*$/.test(s) || insideQuotes(s, hit.index)) continue;
+    found.push({ sentence: s.slice(0, 280), verb: hit[0].toLowerCase() });
+  }
+  return found;
+}
+
 /** Rough task type from the user's prompt, used to bucket reliability history. */
 export function taskTypeOf(prompt = '') {
   const p = prompt.toLowerCase();

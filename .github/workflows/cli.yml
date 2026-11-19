@@ -1,0 +1,50 @@
+name: cli
+on:
+  push:
+    branches: [master, "mutation-*"]
+    paths: ['cli/**', 'action.yml', '.github/workflows/cli.yml']
+  pull_request:
+    paths: ['cli/**', 'action.yml', '.github/workflows/cli.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+
+# Mutation intelligence is only release-ready on a platform when the security
+# suite (cli/test/security.test.js) passes there with a real sandbox backend.
+jobs:
+  test:
+    name: ${{ matrix.os }} · node ${{ matrix.node }}${{ matrix.backend && format(' · {0}', matrix.backend) || '' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, node: 22, backend: bwrap }
+          - { os: ubuntu-latest, node: 18, backend: bwrap }
+          - { os: ubuntu-latest, node: 22, backend: docker }
+          - { os: macos-latest, node: 22, backend: sandbox-exec }
+          - { os: windows-latest, node: 22, backend: '' }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install bubblewrap
+        if: matrix.backend == 'bwrap'
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q bubblewrap
+          # Ubuntu 24.04 blocks unprivileged user namespaces through AppArmor.
+          # This throwaway runner allows them so the bwrap backend can be tested.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+      - name: Pull the container image
+        if: matrix.backend == 'docker'
+        run: docker pull node:22-bookworm-slim
+      - name: The expected sandbox must pass its probe
+        if: matrix.backend != ''
+        working-directory: cli
+        run: node -e "import('./src/sandbox.js').then(m => { const b = m.availableBackends(); console.log('available:', b); if (!b.includes('${{ matrix.backend }}')) process.exit(1); })"
+      - name: Tests (functional + security)
+        working-directory: cli
+        env:
+          CROSSEXAM_TEST_BACKEND: ${{ matrix.backend }}
+        run: npm test

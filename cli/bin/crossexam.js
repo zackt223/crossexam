@@ -4,12 +4,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { analyzeSession } from '../src/analyze.js';
+import { detectWorkClaims } from '../src/claims.js';
 import { emitActions, readPullRequest } from '../src/github.js';
 import { globalSnippets, runInit } from '../src/init.js';
 import { detectCommands, verifyText } from '../src/live.js';
 import { formatForAgent, startMcpServer } from '../src/mcp.js';
 import { discoverAider, discoverMore } from '../src/readers.js';
-import { buildReport, c, printReport } from '../src/report.js';
+import { buildReport, c, printReport, printStrength } from '../src/report.js';
+import { assessStrength, ledgerRecord, qualityOf, strengthHistory, toCsv, withoutSource } from '../src/strength.js';
 import { AGENTS, defaultSources, findTranscripts, readSession } from '../src/transcripts.js';
 
 const VERSION = '0.2.0';
@@ -21,6 +23,10 @@ const HELP = `
     crossexam mcp                  MCP server: any MCP agent calls verify_claims before it says done
     crossexam init [--mcp]         add the rule to AGENTS.md (and MCP configs) so agents check themselves
     crossexam verify --github      in CI: check the claims in an agent's pull request description
+
+  ${c.bold('Test strength')}
+    crossexam mutate               plant small defects in the changed code and see if the tests notice
+    crossexam verify --mutate      verify claims, then grade how strong the tests behind them are
 
   ${c.bold('History')}
     crossexam scan                 check local transcripts: Claude Code, Codex, Gemini CLI, Cline,
@@ -35,6 +41,23 @@ const HELP = `
     --json                         machine-readable result
     --fail-on <contradicted|none>  exit 1 when a claim is contradicted (default: contradicted)
     --timeout <seconds>            per command                    (default 300)
+    --mutate                       also assess test strength when tests or finished work are claimed
+
+  ${c.bold('mutate')}
+    --base <ref>                   compare against this ref       (default: uncommitted changes, else HEAD~1)
+    --files <a.ts,b.js>            mutate these files, every line, instead of the diff
+    --max <n>                      mutants to run this time       (default 25; finished ones are cached)
+    --budget <seconds>             stop starting new mutants after this long (default 300)
+    --isolation <auto|bwrap|sandbox-exec|docker>
+                                   sandbox for the test runs      (default auto: the first one that works here;
+                                                                   refuses to run if none does)
+    --unsandboxed                  run without a sandbox, with your own permissions (code you trust only)
+    --test-command <cmd>           the oracle                     (default: the repo's test command)
+    --no-cache                     ignore cached results
+    --json [out.json] / --csv <f>  write the full report (secret-looking values are redacted)
+    --no-source                    leave code lines out of the report
+    --agent <name>                 record which agent made the change, for history
+    --fail-under <0-1>             exit 1 when the mutation score is below this
 
   ${c.bold('scan')}
     --since <30d|12h|all>          how far back to look           (default 30d)
@@ -52,7 +75,7 @@ const HELP = `
     --dry-run                      print the change, write nothing
 `;
 
-const VALUED = new Set(['since', 'agent', 'repo', 'file', 'json', 'limit', 'path', 'cwd', 'fail-on', 'timeout']);
+const VALUED = new Set(['since', 'agent', 'repo', 'file', 'json', 'limit', 'path', 'cwd', 'fail-on', 'timeout', 'base', 'files', 'max', 'budget', 'isolation', 'test-command', 'csv', 'fail-under']);
 const args = process.argv.slice(2);
 const cmd = args[0] && !args[0].startsWith('-') ? args.shift() : 'scan';
 const flag = (name) => args.includes(`--${name}`);
@@ -70,6 +93,7 @@ try {
   else if (flag('version') || cmd === 'version') console.log(VERSION);
   else if (cmd === 'scan') await scan();
   else if (cmd === 'verify') await verify();
+  else if (cmd === 'mutate') await mutate();
   else if (cmd === 'mcp') startMcpServer({ version: VERSION, defaultCwd: path.resolve(String(opt('cwd', process.cwd()))) });
   else if (cmd === 'init') init();
   else if (cmd === 'hook') await hook();
@@ -125,6 +149,9 @@ async function scan() {
   }
 
   const report = buildReport(claims, { sessions, turns, ranCheckTurns, contradictedTurns, agents: [...agents], since: since ? new Date(since).toISOString() : null });
+  // Test strength from earlier `mutate` / `verify --mutate` / MCP runs: a separate dimension.
+  const mutation = strengthHistory({ since, agent: typeof onlyAgent === 'string' ? onlyAgent : undefined, repo: typeof onlyRepo === 'string' ? onlyRepo : undefined });
+  if (mutation) report.mutation = mutation;
   const json = opt('json');
   if (json) {
     const out = typeof json === 'string' ? json : 'crossexam-report.json';
@@ -158,15 +185,72 @@ async function verify() {
     onRun: (command) => !json && process.stderr.write(c.dim(`  running ${command}…\n`)),
   });
 
+  if (flag('mutate') && wantsStrength(text, r)) {
+    if (!json) process.stderr.write(c.dim('  assessing test strength (planting defects in an isolated copy)…\n'));
+    const strength = await assessStrength({ cwd, ...mutateOpts(), onProgress: json ? undefined : progress });
+    attachStrength(r, strength);
+    ledger([ledgerRecord(strength, { agent: pr?.agent || String(opt('agent', 'unknown')), claim: r.results.find((x) => x.kind === 'tests')?.claim ?? null, source: github ? 'github' : 'verify' })]);
+  }
+
   if (json) process.stdout.write(JSON.stringify({ ...r, pr }, null, 2) + '\n');
   else if (github) emitActions(pr, r);
   else {
     console.log();
     console.log(formatForAgent(r).replace(/^/gm, '  '));
+    if (r.strength) printStrength(r.strength, { limit: 4 });
     if (!r.results.length && Object.keys(r.commands).length) console.log(c.dim(`\n  Checks available here: ${Object.entries(r.commands).map(([k, v]) => `${k} (${v.command})`).join(', ')}`));
     console.log();
   }
   if (opt('fail-on', 'contradicted') !== 'none' && !r.ok) process.exitCode = 1;
+}
+
+async function mutate() {
+  const cwd = path.resolve(String(opt('cwd', process.cwd())));
+  const json = opt('json');
+  const toStdout = json === true;
+  const full = await assessStrength({ cwd, ...mutateOpts(), onProgress: toStdout ? undefined : progress });
+  const r = flag('no-source') ? withoutSource(full) : full;
+  ledger([ledgerRecord(r, { agent: String(opt('agent', 'unknown')), source: 'mutate' })]);
+  const csv = opt('csv');
+  if (typeof csv === 'string') fs.writeFileSync(csv, toCsv(r));
+  if (toStdout) process.stdout.write(JSON.stringify(r, null, 2) + '\n');
+  else {
+    if (typeof json === 'string') fs.writeFileSync(json, JSON.stringify(r, null, 2));
+    printStrength(r, { limit: Number(opt('limit', 8)) });
+    if (typeof json === 'string') console.log(`  ${c.dim('Report written to')} ${path.resolve(json)}\n`);
+  }
+  const under = opt('fail-under');
+  if (under !== undefined && r.summary.score != null && r.summary.score < Number(under)) process.exitCode = 1;
+}
+
+function mutateOpts() {
+  const files = opts('files').flatMap((f) => f.split(',')).filter(Boolean);
+  const str = (k) => (typeof opt(k) === 'string' ? String(opt(k)) : undefined);
+  const num = (k) => (typeof opt(k) === 'string' ? Number(opt(k)) : undefined);
+  const unsandboxed = flag('unsandboxed');
+  return { base: str('base'), files: files.length ? files : undefined, max: num('max'), budgetSeconds: num('budget'), isolation: str('isolation') || (unsandboxed ? 'none' : undefined), allowUnsandboxed: unsandboxed, testCommand: str('test-command'), cache: !flag('no-cache') };
+}
+
+function progress(e) {
+  if (!process.stderr.isTTY) return;
+  if (e.phase === 'copy') process.stderr.write(c.dim(`  copying the repo to a temporary folder; tests will run ${e.isolation?.sandboxed ? 'sandboxed (' + e.isolation.method + ')' : 'NOT SANDBOXED'}…\n`));
+  else if (e.phase === 'baseline') process.stderr.write(c.dim('  running the unmutated test suite (baseline)…\n'));
+  else if (e.phase === 'mutant') {
+    const st = { MUTATION_KILLED: c.green('killed    '), MUTATION_SURVIVED: c.red('survived  '), MUTATION_INVALID: c.gray('invalid   '), MUTATION_UNRESOLVED: c.yellow('unresolved') }[e.status];
+    process.stderr.write(c.dim(`  [${String(e.i).padStart(2)}/${e.total}] `) + st + c.dim(` ${e.mutant.file}:${e.mutant.line} ${e.mutant.operator}${e.cached ? ' (cached)' : ''}\n`));
+  }
+}
+
+/** Only grade test strength when someone claimed tests pass or that work was done. */
+function wantsStrength(text, r) {
+  return r.results.some((x) => x.kind === 'tests') || detectWorkClaims(text).length > 0;
+}
+
+/** Quality rides alongside the verdict; it never changes it. */
+function attachStrength(r, strength) {
+  r.strength = strength;
+  const q = qualityOf(strength);
+  for (const x of r.results) if (x.kind === 'tests') x.quality = q;
 }
 
 function init() {
@@ -266,7 +350,7 @@ function parseSince(v) {
 
 function ledger(claims) {
   try {
-    const dir = path.join(os.homedir(), '.crossexam');
+    const dir = (process.env.CROSSEXAM_HOME || path.join(os.homedir(), '.crossexam'));
     fs.mkdirSync(dir, { recursive: true });
     fs.appendFileSync(path.join(dir, 'ledger.jsonl'), claims.map((x) => JSON.stringify(x)).join('\n') + '\n');
   } catch {

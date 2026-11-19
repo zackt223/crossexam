@@ -86,6 +86,8 @@ jobs:
 
 It annotates the run, writes a job summary, and exposes `ok`, `contradicted`, `agent` and a Markdown `summary` output that you can post as a PR comment.
 
+To also grade test strength, add `mutate: true`, and check out with `fetch-depth: 0` so there's a base to compare against. On Linux runners the action installs bubblewrap and runs mutants sandboxed. `mutation-score` and `mutation-rating` become outputs.
+
 ## Verdicts
 
 | verdict | meaning |
@@ -98,8 +100,99 @@ It annotates the run, writes a job summary, and exposes `ok`, `contradicted`, `a
 
 Only assertions count. “I'll make sure tests pass”, “tests don't pass yet”, questions, and claims inside quotation marks are ignored.
 
+## Test strength (mutation intelligence)
+
+A passing test suite only proves something if it would have failed on broken code. `crossexam mutate` checks that by planting small, deterministic defects in the lines an agent changed: a flipped `<`, an inverted `if`, `&&` swapped for `||`. It then runs your tests against each one and reports which defects the tests never noticed.
+
 ```bash
-cd cli && npm test     # 24 tests
+crossexam mutate                    # the uncommitted change (or the last commit)
+crossexam mutate --base main        # everything since main
+crossexam verify "Fixed clamp and all tests pass." --mutate
+```
+
+Results are reported alongside the factual verdicts, never mixed into them:
+
+```
+✓ verified: "all tests pass"
+  test strength: weak (2 of 7 planted defects caught). This is separate from the verdict above.
+```
+
+- **What it reports.** Each mutant is killed, survived, invalid (didn't compile) or unresolved (timed out or inconclusive). Only survivors are findings, and each comes with the exact line that changed. The score is killed ÷ (killed + survived). It measures how well the tests pin down the changed code, **not** whether the code is correct.
+- **Where it shows up.**
+  - `--json` and `--csv` reports.
+  - The `assess_test_strength` MCP tool, and `verify_claims {mutate: true}`.
+  - The GitHub Action (`mutate: true`).
+  - `crossexam scan` history: test strength by agent, from earlier runs.
+- **Languages.** JavaScript and TypeScript for now, with any test runner your test command uses (`node --test`, vitest, jest, mocha…). Other languages are listed as skipped, never silently ignored.
+
+### Isolation: what runs where
+
+Mutation testing runs your repository's code, so crossexam treats that code as untrusted.
+
+**Your working tree is never modified.** crossexam:
+
+- copies the checkout to a hidden folder next to it;
+- writes mutants only there;
+- deletes the copy afterwards, even on Ctrl-C;
+- removes copies left by a crash on the next run;
+- checks every file hash, `HEAD`, refs, stash and status before and after, and says so.
+
+It runs only read-only git commands and never commits, pushes or switches branches.
+
+**Tests run in a sandbox, or not at all:**
+
+| Platform | Sandbox (`--isolation auto` picks the first one that works) | Network | Your home folder |
+|---|---|---|---|
+| Linux | bubblewrap (`apt install bubblewrap`) | none | hidden |
+| macOS | `sandbox-exec` (built in) | denied | unreadable |
+| any, with Docker or Podman | Linux container, read-only root, no capabilities | none | not mounted |
+| Windows without Docker | **none available: crossexam refuses to run mutants** | – | – |
+
+- **`--unsandboxed`** runs the tests with your own permissions and network. It is labelled `NOT SANDBOXED` in every output, and a repository's `crossexam.json` can't turn it on. Use it only for code you'd run `npm test` on anyway.
+- **Limits:**
+  - per-run timeout that kills the whole process tree;
+  - CPU time (all sandboxes);
+  - memory (bubblewrap, Docker);
+  - a cap on mutants per run (`--max`, default 25);
+  - a total time budget (`--budget`, default 300 s).
+- **Permissions it needs:**
+  - read access to the repo;
+  - write access to the folder that contains it (for the temporary copy);
+  - unprivileged user namespaces on Linux, or a working Docker.
+- **When things fail:**
+  - a failing or timing-out suite stops the run before any mutant ("fix the suite first");
+  - a suite that needs network or secrets fails inside the sandbox, by design;
+  - cleanup problems are reported with the path that was left.
+
+### What stays local
+
+crossexam makes no network requests. Your code, transcripts and environment variables are never uploaded, and this release makes no LLM calls. Reports stay on your disk:
+
+- Secret-looking values (API keys, tokens, private keys, `password = "…"`) are redacted.
+- Paths under your home folder are shortened to `~`.
+- `--no-source` leaves code lines out entirely.
+
+### Known limitations
+
+- A sandbox narrows what test code can reach. It is not a guarantee against kernel or container escapes.
+- macOS `sandbox-exec` is deprecated by Apple and can't enforce a memory limit.
+- On Windows the only sandbox is Docker, and Docker's Linux containers can't load native dependencies built for Windows.
+- Surviving mutants can be equivalent (the change can't alter behaviour). Treat them as leads for a reviewer, not proof of a gap.
+
+### Turning it off
+
+It's off unless you ask for it:
+
+- `crossexam mutate` and `--mutate` are explicit.
+- The MCP tool only runs when an agent calls it.
+- The Action input defaults to `mutate: false`.
+
+To stop agents calling it over MCP, remove `assess_test_strength` from your client's allowed tools.
+
+Details: [docs/mutation-intelligence.md](docs/mutation-intelligence.md) (design) and [docs/mutation-security.md](docs/mutation-security.md) (threat model, backends, test plan).
+
+```bash
+cd cli && npm test     # functional + security tests; sandbox cases run where a sandbox works
 ```
 
 ## The web app
