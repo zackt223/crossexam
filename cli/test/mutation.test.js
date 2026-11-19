@@ -172,8 +172,9 @@ test('verify --mutate keeps the factual verdict and adds test strength beside it
   const tests = j.results.find((x) => x.kind === 'tests');
   assert.equal(tests.verdict, 'verified', 'the tests did pass: that fact stands');
   assert.equal(tests.quality.dimension, 'test-strength');
-  assert.ok(tests.quality.survived > 0);
-  assert.ok(j.strength.mutants.length > 0);
+  const why = () => JSON.stringify({ quality: tests.quality, blocker: j.strength.blocker, isolation: j.strength.isolation?.method, command: j.strength.testCommand, mutants: (j.strength.mutants || []).map((m) => [m.status, m.operator, m.replacement, String(m.why || '').slice(0, 400)]) }, null, 1);
+  assert.ok(tests.quality.survived > 0, why());
+  assert.ok(j.strength.mutants.length > 0, why());
   assert.equal(r.status, 0, 'weak tests are a warning, not a failed claim');
   // The run is in the ledger, and scan history reads it back.
   const h = strengthHistory();
