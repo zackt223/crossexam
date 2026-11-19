@@ -510,6 +510,14 @@ export function runIsolated(command, { copy, cwd, timeoutMs, method, limits = DE
     };
     const q = (p) => JSON.stringify(real(p));
     const readable = [copy.root, ...copy.depDirs.map((d) => path.join(copy.top, d)), ...toolchainDirs()];
+    // Resolving a path (node's realpath, module lookup) stats every parent
+    // folder. Parents inside the home folder get metadata only: they can be
+    // stat'ed, not listed or read, so the names of your files stay hidden.
+    const homeReal = real(os.homedir());
+    const parents = new Set([homeReal]);
+    for (const p of readable) {
+      for (let d = path.dirname(real(p)); d.startsWith(homeReal + path.sep); d = path.dirname(d)) parents.add(d);
+    }
     const profile = [
       '(version 1)',
       '(allow default)',
@@ -518,7 +526,8 @@ export function runIsolated(command, { copy, cwd, timeoutMs, method, limits = DE
       '(deny file-write*)',
       `(allow file-write* (subpath ${q(copy.root)}) (literal "/dev/null") (literal "/dev/zero") (regex #"^/dev/tty") (regex #"^/dev/fd/"))`,
       `(deny file-read* (subpath ${q(os.homedir())}) (subpath "/Volumes") (literal "/var/run/docker.sock") (literal "/private/var/run/docker.sock"))`,
-      `(allow file-read* ${readable.map((p) => `(subpath ${q(p)})`).join(' ')} (literal ${q(os.homedir())}))`,
+      `(allow file-read* ${readable.map((p) => `(subpath ${q(p)})`).join(' ')})`,
+      `(allow file-read-metadata ${[...parents].map((p) => `(literal ${JSON.stringify(p)})`).join(' ')})`,
     ].join('\n');
     env = allowlistedEnv(process.env, { HOME: home, TMPDIR: tmp, GIT_CEILING_DIRECTORIES: path.dirname(copy.root) }).env;
     file = '/usr/bin/sandbox-exec';

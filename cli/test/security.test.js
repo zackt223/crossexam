@@ -27,8 +27,8 @@ const LIMITS = { timeoutMs: 15000, memoryMb: 512, cpuSeconds: 30 };
 const g = (cwd, ...a) => execFileSync('git', a, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
 const commit = (cwd, msg) => g(cwd, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', msg);
 
-function fixture(extra = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cx-sec-'));
+function fixture(extra = {}, parent = os.tmpdir()) {
+  const dir = fs.mkdtempSync(path.join(parent, 'cx-sec-'));
   fs.mkdirSync(path.join(dir, 'src'));
   fs.mkdirSync(path.join(dir, 'test'));
   fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'fx', type: 'module' }));
@@ -290,6 +290,7 @@ const out = {};
 try { fs.readFileSync(canary, 'utf8'); out.readHome = 'ALLOWED'; } catch (e) { out.readHome = e.code; }
 try { fs.writeFileSync(outside, 'x'); out.writeOutside = 'ALLOWED'; } catch (e) { out.writeOutside = e.code; }
 try { fs.writeFileSync(repoFile, 'MUTATED'); out.writeRepo = 'ALLOWED'; } catch (e) { out.writeRepo = e.code; }
+try { out.listHome = fs.readdirSync(path.dirname(canary)).includes(path.basename(canary)) ? 'VISIBLE' : 'HIDDEN'; } catch (e) { out.listHome = e.code; }
 try { fs.writeFileSync('inside.txt', 'x'); out.writeInside = 'ALLOWED'; } catch (e) { out.writeInside = e.code; }
 const s = net.connect({ host: '127.0.0.1', port: Number(port) });
 const done = (v) => { out.network = v; console.log(JSON.stringify(out)); process.exit(0); };
@@ -318,6 +319,7 @@ test('sandbox: no reading the home folder, no writing outside the copy, no netwo
     }
     assert.equal(res.writeInside, 'ALLOWED', 'positive control: the probe really ran inside the copy');
     assert.notEqual(res.readHome, 'ALLOWED', 'home folder readable');
+    assert.notEqual(res.listHome, 'VISIBLE', 'the names of files in the home folder can be listed');
     assert.notEqual(res.network, 'ALLOWED', 'network reachable');
     // bwrap and docker give the sandbox a throwaway /tmp, so a write there can
     // "succeed" without ever reaching the host. The host side is what counts.
@@ -327,6 +329,21 @@ test('sandbox: no reading the home folder, no writing outside the copy, no netwo
     copy.dispose();
     server.close();
     fs.rmSync(canary, { force: true });
+  }
+});
+
+test('sandbox: a repo inside the home folder still runs (npm test), while the rest of home stays hidden', { skip: NO_SANDBOX }, async () => {
+  const parent = fs.mkdtempSync(path.join(os.homedir(), '.cx-sec-home-'));
+  try {
+    const dir = fixture({ 'package.json': JSON.stringify({ name: 'fx', type: 'module', scripts: { test: 'node --test test/math.test.js' } }) }, parent);
+    fs.appendFileSync(path.join(dir, 'src', 'math.js'), 'export const ge = (a, b) => a >= b;\n');
+    const r = await assessStrength({ cwd: dir, ...ISO, cache: false, max: 2, testCommand: 'npm test' });
+    assert.equal(r.blocker ?? null, null, `${r.blocker}\n${r.baseline?.excerpt || ''}`);
+    assert.equal(r.isolation.sandboxed, true);
+    assert.ok(r.mutants.length > 0);
+    assert.equal(r.execution.cleanup.status, 'removed');
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
   }
 });
 
