@@ -5,12 +5,15 @@ import { demoClaims } from '../data/demo';
 import { KIND_LABEL, agentLabel, groupBy, headlineInsight, tally, type ClaimKind } from '../data/model';
 import { AgentSetup } from './AgentSetup';
 import { Bento } from './Bento';
-import { onFirstView, useReveal, useSpotlight } from './fx';
+import { onFirstView, useReveal } from './fx';
 import { Ghost } from './Ghost';
-import { HeroDemo } from './HeroDemo';
+import { LiquidNav, useGlassLight } from './glass';
+import { LensHero } from './LensHero';
 import { Playground } from './Playground';
+import { StrengthDemo } from './StrengthDemo';
 import './site.css';
 import './fx.css';
+import './glass.css';
 
 const REPO = 'https://github.com/zackt223/crossexam';
 const SITE = 'https://zacktelsem.com';
@@ -19,17 +22,18 @@ const LINKEDIN = 'https://www.linkedin.com/in/zackariah-telsem-a8b245246/';
 export default function Landing() {
   const root = useRef<HTMLDivElement>(null);
   useReveal(root);
-  useSpotlight(root);
+  useGlassLight(root);
   useEffect(() => {
     document.title = 'crossexam — your agents say done. we check.';
   }, []);
 
   return (
     <div className="site" ref={root}>
-      <Nav />
+      <LiquidNav repo={REPO} />
       <Hero />
       <AgentStrip />
       <Try />
+      <Strength />
       <WaysIn />
       <ClaimsGrid />
       <Neutral />
@@ -44,54 +48,24 @@ export default function Landing() {
   );
 }
 
-function Nav() {
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const on = () => setScrolled(window.scrollY > 8);
-    on();
-    window.addEventListener('scroll', on, { passive: true });
-    return () => window.removeEventListener('scroll', on);
-  }, []);
-  return (
-    <header className={`nav-bar${scrolled ? ' scrolled' : ''}`}>
-      <a href="#top" className="brand">
-        <LogoMark size={26} />
-        <Wordmark />
-      </a>
-      <nav className="nav-links">
-        <a href="#try">Try it</a>
-        <a href="#agents">Any agent</a>
-        <a href="#checks">Checks</a>
-        <a href="#teams">For teams</a>
-        <a href="#open-source">Open source</a>
-      </nav>
-      <div className="nav-cta">
-        <a className="pill-btn ghost hide-sm" href={REPO} target="_blank" rel="noreferrer">
-          <GitHub /> Star
-        </a>
-        <a className="pill-btn blue" href="#try">
-          Try it
-        </a>
-      </div>
-    </header>
-  );
-}
-
 function Hero() {
   return (
-    <section className="hero" id="top">
-      <FloatTile x="8%" y="26%" d={0} glyph="✓" label="tests" />
-      <FloatTile x="84%" y="20%" d={1.4} glyph="⇄" label="callers" />
-      <FloatTile x="11%" y="62%" d={2.2} glyph="⛁" label="migration" />
-      <FloatTile x="81%" y="57%" d={0.7} glyph="⬡" label="deps" />
+    <section className="hero lg-hero" id="top">
+      <div className="pools" aria-hidden="true">
+        <i className="p1" />
+        <i className="p2" />
+        <i className="p3" />
+        <i className="p4" />
+      </div>
+      <FloatTile x="7%" y="22%" d={0} glyph="✓" label="tests" />
+      <FloatTile x="86%" y="18%" d={1.4} glyph="⇄" label="callers" />
+      <FloatTile x="5%" y="56%" d={2.2} glyph="⛁" label="migration" />
+      <FloatTile x="88%" y="52%" d={0.7} glyph="⬡" label="deps" />
       <div className="hero-inner">
-        <div className="mascot">
-          <DotSphere />
-          <Ghost size={112} />
-        </div>
-        <span className="counter">
-          <b>7.1%</b> of agent “done”s in one dev’s real logs didn’t hold up
-        </span>
+        <a className="launch-chip glass" href="#strength">
+          <b>New</b>
+          <span>test strength: would your tests notice a bug?</span>
+        </a>
         <h1>
           Your agents say done.
           <br />
@@ -106,9 +80,12 @@ function Hero() {
             Try it on a claim ↓
           </a>
         </div>
+        <p className="hero-proof">
+          <b>7.1%</b> of agent “done”s in one developer’s real logs didn’t hold up
+        </p>
       </div>
       <div className="hero-demo reveal">
-        <HeroDemo />
+        <LensHero />
       </div>
     </section>
   );
@@ -142,6 +119,32 @@ function Try() {
       </div>
       <div className="reveal">
         <Playground />
+      </div>
+    </section>
+  );
+}
+
+function Strength() {
+  return (
+    <section className="block lg-field" id="strength">
+      <div className="pools" aria-hidden="true">
+        <i className="p1" />
+        <i className="p2" />
+        <i className="p3" />
+      </div>
+      <div className="block-head reveal">
+        <span className="eyebrow new-tag">
+          <b>New in 0.3</b> test strength
+        </span>
+        <h2>Passing tests can still be weak</h2>
+        <p>crossexam plants small defects in the lines your agent changed and runs your tests against each one. Every defect they miss is behaviour nobody checked. Switch tests on and watch the score move: this really runs, in your browser.</p>
+      </div>
+      <div className="reveal">
+        <StrengthDemo />
+      </div>
+      <div className="strength-foot reveal">
+        <CopyCmd cmd="npx crossexamdev mutate" small />
+        <span>runs in a sandbox on Linux and macOS, never in your working tree</span>
       </div>
     </section>
   );
@@ -361,7 +364,7 @@ function RoutingSection() {
           <span>
             Agents above <b>{Math.round(max * 100)}%</b> false “done”s lose auto-merge
           </span>
-          <input type="range" min={0.03} max={0.15} step={0.005} value={max} onChange={(e) => setMax(Number(e.target.value))} />
+          <input type="range" min={0.03} max={0.15} step={0.005} value={max} onChange={(e) => setMax(Number(e.target.value))} style={{ ["--p" as string]: `${((max - 0.03) / 0.12) * 100}%` }} aria-label="false done threshold" />
           <span className="route-agents">
             {[...rates].map(([a, r]) => (
               <i key={a} className={r > max ? 'over' : ''}>
@@ -370,9 +373,10 @@ function RoutingSection() {
             ))}
           </span>
         </label>
-        <button className={`route-toggle${testsAuto ? ' on' : ''}`} onClick={() => setTestsAuto(!testsAuto)} aria-pressed={testsAuto}>
-          <i /> Auto-merge verified “tests pass”
-        </button>
+        <label className="route-switch">
+          <input type="checkbox" className="g-switch" checked={testsAuto} onChange={(e) => setTestsAuto(e.target.checked)} />
+          Auto-merge verified “tests pass”
+        </label>
         <div className="route-bar" aria-hidden="true">
           {lanes.map((l) => (
             <span key={l.id} className={l.tone} style={{ width: `${share(l.id) * 100}%` }} />
@@ -591,26 +595,6 @@ function FloatTile({ x, y, d, glyph, label }: { x: string; y: string; d: number;
         <span className="float-l">{label}</span>
       </div>
     </div>
-  );
-}
-
-function DotSphere() {
-  // A loose sphere of dots, like a halo seen from above.
-  const dots = useMemo(() => {
-    const out: { x: number; y: number; o: number; r: number }[] = [];
-    for (let i = 0; i < 220; i++) {
-      const t = i * 2.399963;
-      const rad = Math.sqrt(i / 220);
-      out.push({ x: 50 + Math.cos(t) * rad * 46, y: 50 + Math.sin(t) * rad * 46, o: 0.12 + rad * 0.45, r: 0.45 + rad * 0.35 });
-    }
-    return out;
-  }, []);
-  return (
-    <svg className="sphere" viewBox="0 0 100 100" aria-hidden="true">
-      {dots.map((d, i) => (
-        <circle key={i} cx={d.x} cy={d.y} r={d.r} fill="#2f6bff" opacity={d.o * 0.55} />
-      ))}
-    </svg>
   );
 }
 
