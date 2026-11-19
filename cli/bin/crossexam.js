@@ -14,7 +14,7 @@ import { buildReport, c, printReport, printStrength } from '../src/report.js';
 import { assessStrength, ledgerRecord, qualityOf, strengthHistory, toCsv, withoutSource } from '../src/strength.js';
 import { AGENTS, defaultSources, findTranscripts, readSession } from '../src/transcripts.js';
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const HELP = `
   ${c.bold('crossexam')} — cross-examine what your coding agents claim
 
