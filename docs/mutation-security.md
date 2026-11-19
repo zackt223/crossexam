@@ -45,7 +45,7 @@ Out of scope:
 | Backend | Platforms | Filesystem | Network | Limits | Notes |
 |---|---|---|---|---|---|
 | `bwrap` (bubblewrap) | Linux | Whole system read-only. `/home`, `/root`, `/run` and `/tmp` replaced by empty tmpfs. Only the copy is writable. Dependency folders and the toolchain are re-mounted read-only. | none (new namespace) | timeout and tree kill, `ulimit -t` CPU seconds, `ulimit -d` data size, own pid namespace | Needs unprivileged user namespaces. On Ubuntu 24.04+ AppArmor may block them, so the probe fails and crossexam says so. |
-| `sandbox-exec` | macOS | Writes denied outside the copy. Reads denied under your home folder, except the copy, dependency folders and toolchain. | denied | timeout and tree kill, `ulimit -t` | `sandbox-exec` is deprecated by Apple but still shipped. macOS does not enforce `ulimit -d`, so memory is only bounded by the timeout. |
+| `sandbox-exec` | macOS | Writes denied outside the copy. Reads denied under your home folder, except the copy, dependency folders and toolchain. Their parent folders inside home can be stat'ed (node needs this to resolve paths) but not listed or read. | denied | timeout and tree kill, `ulimit -t` | `sandbox-exec` is deprecated by Apple but still shipped. macOS does not enforce `ulimit -d`, so memory is only bounded by the timeout. |
 | `docker` / `podman` | any OS with a Linux container engine | Only the copy is mounted (read-write). Dependencies are mounted read-only. Root filesystem is read-only. | `--network none` | `--memory`, `--cpus`, `--pids-limit`, `--cap-drop ALL`, `no-new-privileges`, non-root user on Linux | Native dependencies built for macOS or Windows won't load in a Linux container. Set `mutation.image` for your toolchain. |
 | `none` (unsandboxed) | any | A temporary copy only. **Tests run with your user's permissions.** | **your network** | timeout and tree kill, credential-stripped environment | Only with `--unsandboxed` or `CROSSEXAM_ALLOW_UNSANDBOXED=1`. Every output says `NOT SANDBOXED`. Use only for code you would run with `npm test` anyway. |
 
@@ -82,15 +82,24 @@ The tests live in `cli/test/security.test.js` and run on Linux, macOS and Window
 | A timed-out run's grandchild processes are killed | all |
 | `--files ../outside.js` and symlinks that escape the repo are refused | all |
 | A repo config can't select `none`; `auto` without a backend refuses | all |
-| A canary file in `$HOME` can't be read from a test | sandbox |
-| Writing outside the copy fails | sandbox |
+| The copy's working folder resolves inside the copy, even when the repo path is a link or alias (macOS `/var`, Windows short names) | all |
+| A canary file in `$HOME` can't be read from a test, and home can't be listed | sandbox |
+| A write outside the copy, or to the real repo, never reaches the host | sandbox |
+| A repo that lives inside the home folder still runs `npm test` | sandbox |
+| Memory past the limit stops the run | bwrap, docker |
 | Outbound network fails | sandbox |
 | A canary environment secret is not visible | sandbox, and unsandboxed for credential names |
 | A CPU-bound loop is stopped by the limits | sandbox |
 
 ## 7. Release criteria
 
-Mutation intelligence is not production-ready on a platform until this suite passes there with a real sandbox backend. As of this commit:
+Mutation intelligence is not production-ready on a platform until this suite passes there with a real sandbox backend. Status as of 2026-11-19, from the `cli` CI matrix (GitHub-hosted runners):
 
-- **Windows:** the suite runs and passes locally (no sandbox backend; refusal and unsandboxed paths covered).
-- **Linux (bwrap) and macOS (sandbox-exec):** waiting on the CI matrix. Until it is green, treat those backends as unverified.
+| Platform | Backend | Result |
+|---|---|---|
+| Ubuntu, Node 18 and 22 | bwrap | all pass, nothing skipped |
+| Ubuntu, Node 22 | docker | all pass, nothing skipped |
+| macOS, Node 22 | sandbox-exec | all pass; the memory-limit case is skipped because macOS can't enforce one |
+| Windows, Node 22 | none available | non-sandbox cases pass; the 4 sandbox cases are skipped. crossexam refuses to run mutants unless `--unsandboxed` is passed or Docker is installed. |
+
+These are CI runners, not every distribution or macOS version. A platform where the probe fails gets a refusal, never a silent unsandboxed run.
