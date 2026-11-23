@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zackt223/crossexam/blob/master/docs/upload.schema.json",
+  "title": "crossexam.upload/v1",
+  "description": "What a crossexam run would send to crossexam cloud. Built and checked by `crossexam upload --dry-run`; see docs/upload-format.md.",
+  "type": "object",
+  "required": ["kind", "cli", "createdAt", "sourcePolicy", "agent", "claims"],
+  "additionalProperties": false,
+  "properties": {
+    "kind": { "const": "crossexam.upload/v1" },
+    "cli": { "type": "string", "maxLength": 32 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "sourcePolicy": { "enum": ["changed-lines", "none"] },
+    "repository": { "type": ["string", "null"], "maxLength": 200 },
+    "agent": { "type": "string", "maxLength": 64 },
+    "github": {
+      "type": ["object", "null"],
+      "required": ["repository"],
+      "additionalProperties": false,
+      "properties": {
+        "repositoryId": { "type": ["integer", "null"] },
+        "repositoryOwnerId": { "type": ["integer", "null"] },
+        "repository": { "type": "string", "maxLength": 200 },
+        "runId": { "type": ["integer", "null"] },
+        "runAttempt": { "type": ["integer", "null"] },
+        "event": { "type": ["string", "null"], "maxLength": 64 },
+        "sha": { "type": ["string", "null"], "maxLength": 64 },
+        "ref": { "type": ["string", "null"], "maxLength": 255 },
+        "pr": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "number": { "type": "integer" },
+            "title": { "type": "string", "maxLength": 301 },
+            "author": { "type": "string", "maxLength": 100 },
+            "headSha": { "type": ["string", "null"] },
+            "headRef": { "type": ["string", "null"] },
+            "baseRef": { "type": ["string", "null"] },
+            "fork": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "claims": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "required": ["kind", "claim", "verdict"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": { "type": "string", "maxLength": 32 },
+          "claim": { "type": "string", "maxLength": 601 },
+          "verdict": { "enum": ["verified", "contradicted", "stale", "unbacked", "review"] },
+          "reason": { "type": ["string", "null"], "maxLength": 601 },
+          "command": { "type": ["string", "null"], "maxLength": 301 },
+          "exitCode": { "type": ["integer", "null"] },
+          "excerpt": { "type": ["string", "null"], "maxLength": 2049 }
+        }
+      }
+    },
+    "mutation": {
+      "type": ["object", "null"],
+      "required": ["rating", "summary", "mutants"],
+      "additionalProperties": false,
+      "properties": {
+        "scope": { "type": ["string", "null"] },
+        "base": { "type": ["string", "null"] },
+        "testCommand": { "type": ["string", "null"] },
+        "isolation": {
+          "type": "object",
+          "properties": { "method": { "type": ["string", "null"] }, "sandboxed": { "type": "boolean" } }
+        },
+        "rating": { "enum": ["strong", "moderate", "weak", "inconclusive"] },
+        "blocker": { "type": ["string", "null"] },
+        "summary": {
+          "type": "object",
+          "required": ["attempted", "killed", "survived", "invalid", "unresolved"],
+          "properties": {
+            "attempted": { "type": "integer", "minimum": 0 },
+            "killed": { "type": "integer", "minimum": 0 },
+            "survived": { "type": "integer", "minimum": 0 },
+            "invalid": { "type": "integer", "minimum": 0 },
+            "unresolved": { "type": "integer", "minimum": 0 },
+            "remaining": { "type": "integer", "minimum": 0 },
+            "score": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+            "ms": { "type": ["number", "null"] }
+          }
+        },
+        "files": {
+          "type": "array",
+          "maxItems": 300,
+          "items": {
+            "type": "object",
+            "properties": {
+              "file": { "type": "string" },
+              "language": { "type": ["string", "null"] },
+              "changedLines": { "type": "integer" },
+              "mutants": { "type": "integer" },
+              "sha256": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "mutants": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "required": ["fingerprint", "file", "operator", "status"],
+            "additionalProperties": false,
+            "properties": {
+              "fingerprint": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+              "file": { "type": "string", "maxLength": 301 },
+              "line": { "type": ["integer", "null"] },
+              "col": { "type": ["integer", "null"] },
+              "function": { "type": ["string", "null"], "maxLength": 121 },
+              "operator": { "type": "string", "maxLength": 32 },
+              "status": { "enum": ["MUTATION_KILLED", "MUTATION_SURVIVED", "MUTATION_INVALID", "MUTATION_UNRESOLVED"] },
+              "why": { "type": ["string", "null"], "maxLength": 601 },
+              "ms": { "type": ["number", "null"] },
+              "original": { "type": ["string", "null"], "maxLength": 401 },
+              "replacement": { "type": ["string", "null"], "maxLength": 401 },
+              "before": { "type": ["string", "null"], "maxLength": 401 },
+              "after": { "type": ["string", "null"], "maxLength": 401 }
+            }
+          }
+        },
+        "execution": { "type": ["object", "null"] }
+      }
+    }
+  }
+}

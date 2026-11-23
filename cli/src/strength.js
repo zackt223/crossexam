@@ -14,6 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { excerpt, judgeRun } from './evidence.js';
+import { redact, tildify } from './redact.js';
 import { detectCommands, loadConfig } from './live.js';
 import { JS_EXT, TEST_FILE, applyMutant, classifyFile, explain, generateMutants, prioritize } from './mutate.js';
 import { allowlistedEnv, chooseIsolation, clampLimits, createCopy, describeIsolation, fingerprint, gitState, git as gitRead, isInside, projectFiles, runIsolated, scrubbedEnv, sha, sweepStaleCopies } from './sandbox.js';
@@ -406,30 +407,7 @@ export async function assessStrength(opts) {
   return finish();
 }
 
-const tildify = (p) => {
-  const h = os.homedir();
-  return p.toLowerCase().startsWith(h.toLowerCase()) ? '~' + p.slice(h.length) : p;
-};
-
-// Values that look like secrets never leave in a report.
-const SECRET_PATTERNS = [
-  /\b(?:sk|pk|rk)_(?:live|test)_[0-9A-Za-z]{10,}/g,
-  /\bsk-[A-Za-z0-9_-]{20,}/g,
-  /\bgh[pousr]_[A-Za-z0-9]{30,}/g,
-  /\bgithub_pat_[A-Za-z0-9_]{30,}/g,
-  /\bAKIA[0-9A-Z]{16}\b/g,
-  /\bxox[baprs]-[A-Za-z0-9-]{10,}/g,
-  /\bAIza[0-9A-Za-z_-]{35}\b/g,
-  /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g,
-  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g,
-];
-const SECRET_ASSIGN = /((?:password|passwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|client[_-]?secret)["']?\s*[:=]\s*)(["'`])([^"'`\n]{6,})\2/gi;
-export function redact(s) {
-  if (typeof s !== 'string' || !s) return s;
-  let out = s;
-  for (const re of SECRET_PATTERNS) out = out.replace(re, '[redacted]');
-  return out.replace(SECRET_ASSIGN, (_, k, q) => `${k}${q}[redacted]${q}`);
-}
+export { redact };
 
 /** A report without code lines, for sharing outside the team. */
 export function withoutSource(report) {

@@ -13,6 +13,7 @@ import { discoverAider, discoverMore } from '../src/readers.js';
 import { buildReport, c, printReport, printStrength } from '../src/report.js';
 import { assessStrength, ledgerRecord, qualityOf, strengthHistory, toCsv, withoutSource } from '../src/strength.js';
 import { AGENTS, defaultSources, findTranscripts, readSession } from '../src/transcripts.js';
+import { SOURCE_POLICIES, buildPayload, classifyReport, githubContext, validatePayload } from '../src/upload.js';
 
 const VERSION = '0.3.0';
 const HELP = `
@@ -27,6 +28,11 @@ const HELP = `
   ${c.bold('Test strength')}
     crossexam mutate               plant small defects in the changed code and see if the tests notice
     crossexam verify --mutate      verify claims, then grade how strong the tests behind them are
+
+  ${c.bold('Cloud')} (not open yet: nothing is ever sent today)
+    crossexam upload --dry-run --report <file>
+                                   show exactly what a run would send to crossexam cloud: paths made
+                                   relative, secrets redacted. --source none leaves code lines out
 
   ${c.bold('History')}
     crossexam scan                 check local transcripts: Claude Code, Codex, Gemini CLI, Cline,
@@ -59,6 +65,13 @@ const HELP = `
     --agent <name>                 record which agent made the change, for history
     --fail-under <0-1>             exit 1 when the mutation score is below this
 
+  ${c.bold('upload')}
+    --dry-run                      build and check the payload, print it, send nothing
+    --report <file>                a report saved with verify --json or mutate --json (repeatable)
+    --source <changed-lines|none>  include the changed code lines, or none of them (default changed-lines)
+    --agent <name>                 which agent made the change (otherwise taken from the pr)
+    --out <file>                   write the payload to a file instead of stdout
+
   ${c.bold('scan')}
     --since <30d|12h|all>          how far back to look           (default 30d)
     --agent <name>                 one of: ${AGENTS.join(', ')}
@@ -75,7 +88,7 @@ const HELP = `
     --dry-run                      print the change, write nothing
 `;
 
-const VALUED = new Set(['since', 'agent', 'repo', 'file', 'json', 'limit', 'path', 'cwd', 'fail-on', 'timeout', 'base', 'files', 'max', 'budget', 'isolation', 'test-command', 'csv', 'fail-under']);
+const VALUED = new Set(['report', 'source', 'out', 'since', 'agent', 'repo', 'file', 'json', 'limit', 'path', 'cwd', 'fail-on', 'timeout', 'base', 'files', 'max', 'budget', 'isolation', 'test-command', 'csv', 'fail-under']);
 const args = process.argv.slice(2);
 const cmd = args[0] && !args[0].startsWith('-') ? args.shift() : 'scan';
 const flag = (name) => args.includes(`--${name}`);
@@ -94,6 +107,7 @@ try {
   else if (cmd === 'scan') await scan();
   else if (cmd === 'verify') await verify();
   else if (cmd === 'mutate') await mutate();
+  else if (cmd === 'upload') upload();
   else if (cmd === 'mcp') startMcpServer({ version: VERSION, defaultCwd: path.resolve(String(opt('cwd', process.cwd()))) });
   else if (cmd === 'init') init();
   else if (cmd === 'hook') await hook();
@@ -202,6 +216,50 @@ async function verify() {
     console.log();
   }
   if (opt('fail-on', 'contradicted') !== 'none' && !r.ok) process.exitCode = 1;
+}
+
+/**
+ * What a run would send to crossexam cloud. Cloud isn't open yet, so this only
+ * ever builds, checks and prints the payload; it has no way to send it.
+ */
+function upload() {
+  if (!flag('dry-run')) {
+    process.stderr.write("crossexam cloud isn't open yet, so there is nowhere to send this and nothing was sent.\nRun with --dry-run to see exactly what a run would send.\n");
+    process.exitCode = 2;
+    return;
+  }
+  const files = opts('report');
+  if (!files.length) throw new Error('upload --dry-run needs --report <file>: save one with `crossexam verify "…" --json > verify.json` or `crossexam mutate --json mutate.json`.');
+  let verify = null;
+  let mutation = null;
+  for (const f of files) {
+    const got = classifyReport(JSON.parse(fs.readFileSync(path.resolve(f), 'utf8')));
+    verify = got.verify ?? verify;
+    mutation = got.mutation ?? mutation;
+  }
+  const source = String(opt('source', 'changed-lines'));
+  if (!SOURCE_POLICIES.includes(source)) throw new Error(`--source must be one of ${SOURCE_POLICIES.join(', ')}`);
+  const agent = opt('agent');
+  const payload = buildPayload({
+    verify,
+    mutation,
+    github: githubContext(),
+    agent: typeof agent === 'string' ? agent : undefined,
+    cliVersion: VERSION,
+    root: path.resolve(String(opt('cwd', verify?.cwd || process.cwd()))),
+    sourcePolicy: source,
+  });
+  const errors = validatePayload(payload);
+  if (errors.length) throw new Error(`the payload failed its own checks:\n  ${errors.join('\n  ')}`);
+  const text = JSON.stringify(payload, null, 2);
+  const out = opt('out');
+  if (typeof out === 'string') {
+    fs.writeFileSync(out, text + '\n');
+    process.stderr.write(`dry run: ${Buffer.byteLength(text)} bytes written to ${out}. nothing was sent.\n`);
+  } else {
+    process.stdout.write(text + '\n');
+    process.stderr.write(`dry run: ${Buffer.byteLength(text)} bytes. nothing was sent.\n`);
+  }
 }
 
 async function mutate() {

@@ -1,3 +1,4 @@
+import { redact } from './redact.js';
 // Evidence: which commands count as a check for which claim, and whether
 // a given run passed, failed, or hid its own exit status.
 
@@ -121,7 +122,8 @@ export function excerpt(out = '', max = 420) {
   const idx = lines.findIndex((l) => FAIL_SIGNALS.some((re) => re.test(l)));
   const from = idx > 2 ? idx - 2 : 0;
   const s = lines.slice(from, from + 10).join('\n');
-  return s.length > max ? s.slice(0, max) + '…' : s;
+  // excerpts end up in reports, pr summaries and uploads: no secrets in them
+  return redact(s.length > max ? s.slice(0, max) + '…' : s);
 }
 
 function clip(s) {
