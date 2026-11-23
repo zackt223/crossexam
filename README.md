@@ -172,6 +172,8 @@ crossexam makes no network requests. Your code, transcripts and environment vari
 - Paths under your home folder are shortened to `~`.
 - `--no-source` leaves code lines out entirely.
 
+A hosted crossexam cloud is planned, and uploading to it will always be opt-in. The CLI has no code that sends anything today. `crossexam upload --dry-run --report <file>` shows exactly what a run would send, with paths made relative and secrets redacted. The format is described in [docs/upload-format.md](docs/upload-format.md).
+
 ### Known limitations
 
 - A sandbox narrows what test code can reach. It is not a guarantee against kernel or container escapes.
