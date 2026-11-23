@@ -1,46 +1,59 @@
 import { useId } from 'react';
 
 /**
- * The witness: a little ghost with a halo, eyes cut sideways at whatever the
- * agent just claimed. Glossy squircle like an app icon.
+ * The mark: five pixels make an x, the centre left open where the claim is
+ * inspected. 12-unit cells on a 64-unit tile; the centre ring is a 3.5u stroke
+ * whose outer edge sits flush with its cell. The default form is white pixels
+ * on a liquid-glass tile in the three blues (haze → signal → deep).
  */
-export function LogoMark({ size = 28, flat = false }: { size?: number; flat?: boolean }) {
+export function LogoMark({ size = 28, flat = false, bare = false }: { size?: number; flat?: boolean; bare?: boolean }) {
   const id = useId().replace(/:/g, '');
+  const ink = bare ? 'currentColor' : '#fff';
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" style={{ flex: 'none', display: 'block' }}>
-      <defs>
-        <linearGradient id={`bg${id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#5cc8ff" />
-          <stop offset="1" stopColor="#0a84ff" />
-        </linearGradient>
-        <radialGradient id={`glow${id}`} cx="0.5" cy="0.42" r="0.55">
-          <stop offset="0" stopColor="#ffffff" stopOpacity="0.35" />
-          <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
-        </radialGradient>
-        <linearGradient id={`ghost${id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#e9f7ff" />
-          <stop offset="1" stopColor="#bfe6ff" />
-        </linearGradient>
-      </defs>
-      <path d="M32 2c17.6 0 30 5.4 30 30S49.6 62 32 62 2 56.6 2 32 14.4 2 32 2Z" fill={flat ? '#0a84ff' : `url(#bg${id})`} />
-      {!flat && <path d="M32 2c17.6 0 30 5.4 30 30S49.6 62 32 62 2 56.6 2 32 14.4 2 32 2Z" fill={`url(#glow${id})`} />}
-      <ellipse cx="32" cy="15.2" rx="10.5" ry="3" fill="none" stroke="#ffc53d" strokeWidth="2.4" transform="rotate(-6 32 15.2)" />
-      <path
-        d="M19.5 33.5c0-8.1 5.6-13.4 12.7-13.4 7.2 0 12.6 5.3 12.6 13.2l-.4 14.3c-.1 2.4-2 3.9-4 3.2-1.6-.6-2.7-2-4.3-2-1.7 0-2.6 1.9-4.2 1.9-1.8 0-2.6-1.8-4.3-1.8-1.5 0-2.4 1.5-3.9 1.9-2.2.5-3.6-1.1-3.7-3.4Z"
-        fill={`url(#ghost${id})`}
-      />
-      <ellipse cx="29.6" cy="33" rx="3.3" ry="3.9" fill="#fff" />
-      <ellipse cx="37.6" cy="32.6" rx="3.3" ry="3.9" fill="#fff" />
-      <ellipse cx="31" cy="33.4" rx="2" ry="2.6" fill="#0b1220" />
-      <ellipse cx="39" cy="33" rx="2" ry="2.6" fill="#0b1220" />
+      {!bare && (
+        <>
+          <defs>
+            <linearGradient id={`t${id}`} x1="0.2" y1="0" x2="0.8" y2="1">
+              <stop offset="0" stopColor="#7AD7FF" />
+              <stop offset="0.45" stopColor="#00AAEE" />
+              <stop offset="1" stopColor="#0078D4" />
+            </linearGradient>
+            <radialGradient id={`h${id}`} cx="0.3" cy="0.06" r="0.7">
+              <stop offset="0" stopColor="#fff" stopOpacity="0.6" />
+              <stop offset="0.5" stopColor="#fff" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <rect width="64" height="64" rx="15" fill={flat ? '#0078D4' : `url(#t${id})`} />
+          {!flat && (
+            <>
+              <rect width="64" height="64" rx="15" fill={`url(#h${id})`} />
+              <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="14.3" fill="none" stroke="#fff" strokeOpacity="0.5" strokeWidth="1.5" />
+            </>
+          )}
+        </>
+      )}
+      <g fill={ink}>
+        <rect x="14" y="14" width="12" height="12" />
+        <rect x="38" y="14" width="12" height="12" />
+        <rect x="14" y="38" width="12" height="12" />
+        <rect x="38" y="38" width="12" height="12" />
+      </g>
+      <rect x="27.75" y="27.75" width="8.5" height="8.5" fill="none" stroke={ink} strokeWidth="3.5" />
     </svg>
   );
 }
 
-export function Wordmark({ dim = 'rgba(22,22,26,.4)' }: { dim?: string }) {
+/** The wordmark: lowercase, the x drawn with the mark's own pixels in signal blue. */
+export function Wordmark({ dim = 'rgba(22,22,26,.4)', size = 15, suffix = '.dev' }: { dim?: string; size?: number; suffix?: string }) {
   return (
-    <span style={{ fontWeight: 600, letterSpacing: '-0.02em', fontSize: 15 }}>
-      crossexam<span style={{ color: dim, fontWeight: 500 }}>.dev</span>
+    <span className="wordmark" style={{ display: 'inline-flex', alignItems: 'center', fontWeight: 600, letterSpacing: '-0.03em', fontSize: size, whiteSpace: 'nowrap' }}>
+      crosse
+      <span aria-hidden="true" style={{ display: 'inline-flex', color: '#00AAEE', margin: '0 0.04em', transform: 'translateY(0.06em)' }}>
+        <LogoMark bare size={Math.round(size * 0.66)} />
+      </span>
+      <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>x</span>
+      am{suffix && <span style={{ color: dim, fontWeight: 500 }}>{suffix}</span>}
     </span>
   );
 }

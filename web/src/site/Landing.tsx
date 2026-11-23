@@ -6,14 +6,16 @@ import { KIND_LABEL, agentLabel, groupBy, headlineInsight, tally, type ClaimKind
 import { AgentSetup } from './AgentSetup';
 import { Bento } from './Bento';
 import { onFirstView, useReveal } from './fx';
-import { Ghost } from './Ghost';
 import { LiquidNav, useGlassLight } from './glass';
+import { AskPanel } from './AskPanel';
 import { LensHero } from './LensHero';
+import { SlateHero } from './SlateHero';
 import { Playground } from './Playground';
 import { StrengthDemo } from './StrengthDemo';
 import './site.css';
 import './fx.css';
 import './glass.css';
+import './slate.css';
 
 const REPO = 'https://github.com/zackt223/crossexam';
 const SITE = 'https://zacktelsem.com';
@@ -30,8 +32,19 @@ export default function Landing() {
   return (
     <div className="site" ref={root}>
       <LiquidNav repo={REPO} />
-      <Hero />
+      <SlateHero
+        cta={
+          <div className="hero-ctas">
+            <CopyCmd cmd="npx crossexamdev scan" />
+            <a className="pill-btn blue lg" href="#try">
+              Try it on a claim ↓
+            </a>
+          </div>
+        }
+      />
       <AgentStrip />
+      <Ask />
+      <Lens />
       <Try />
       <Strength />
       <WaysIn />
@@ -48,45 +61,35 @@ export default function Landing() {
   );
 }
 
-function Hero() {
+function Ask() {
   return (
-    <section className="hero lg-hero" id="top">
-      <div className="pools" aria-hidden="true">
-        <i className="p1" />
-        <i className="p2" />
-        <i className="p3" />
-        <i className="p4" />
+    <section className="block wide" id="ask">
+      <div className="block-head reveal">
+        <span className="eyebrow">Ask it in plain words</span>
+        <h2>One verifier. Every agent. Your machine.</h2>
+        <p>Pick what you want checked. crossexam answers with the command it ran and what that command printed, never with a vibe.</p>
       </div>
-      <FloatTile x="7%" y="22%" d={0} glyph="✓" label="tests" />
-      <FloatTile x="86%" y="18%" d={1.4} glyph="⇄" label="callers" />
-      <FloatTile x="5%" y="56%" d={2.2} glyph="⛁" label="migration" />
-      <FloatTile x="88%" y="52%" d={0.7} glyph="⬡" label="deps" />
-      <div className="hero-inner">
-        <a className="launch-chip glass" href="#strength">
-          <b>New</b>
-          <span>test strength: would your tests notice a bug?</span>
-        </a>
-        <h1>
-          Your agents say done.
-          <br />
-          <span className="h1-accent">We check.</span>
-        </h1>
-        <p className="lede">
-          crossexam cross-examines every claim your coding agent makes against what actually ran. Tests, refactors, migrations, dependency bumps. Claude Code, Codex, Cursor, Copilot, or whatever you run next.
-        </p>
-        <div className="hero-ctas">
-          <CopyCmd cmd="npx crossexamdev scan" />
-          <a className="pill-btn blue lg" href="#try">
-            Try it on a claim ↓
-          </a>
-        </div>
-        <p className="hero-proof">
-          <b>7.1%</b> of agent “done”s in one developer’s real logs didn’t hold up
-        </p>
+      <div className="reveal">
+        <AskPanel />
       </div>
-      <div className="hero-demo reveal">
+    </section>
+  );
+}
+
+function Lens() {
+  return (
+    <section className="block" id="lens">
+      <div className="block-head reveal">
+        <span className="eyebrow">Hold it up to the glass</span>
+        <h2>Every “done” has a story underneath</h2>
+        <p>Drag the lens across what the agent said. Under it, each claim shows what actually happened.</p>
+      </div>
+      <div className="reveal lens-slot">
         <LensHero />
       </div>
+      <p className="hero-proof center">
+        <b>7.1%</b> of agent “done”s in one developer’s real logs didn’t hold up
+      </p>
     </section>
   );
 }
@@ -510,7 +513,9 @@ function Faq() {
 function FinalCta() {
   return (
     <section className="final reveal">
-      <Ghost size={88} />
+      <span className="final-mark">
+        <LogoMark size={96} />
+      </span>
       <h2>Stop merging “done”.</h2>
       <p>Find out how often your agents are right. It takes one command.</p>
       <CopyCmd cmd="npx crossexamdev scan" />
@@ -584,17 +589,6 @@ function CopyCmd({ cmd, small }: { cmd: string; small?: boolean }) {
       <span className="cmd-t">{cmd}</span>
       <span className="cmd-copy">{done ? 'copied' : <CopyIcon />}</span>
     </button>
-  );
-}
-
-function FloatTile({ x, y, d, glyph, label }: { x: string; y: string; d: number; glyph: string; label: string }) {
-  return (
-    <div className="float" style={{ left: x, top: y, animationDelay: `${-d}s` }} aria-hidden="true">
-      <div className="float-in">
-        <span className="float-g">{glyph}</span>
-        <span className="float-l">{label}</span>
-      </div>
-    </div>
   );
 }
 
