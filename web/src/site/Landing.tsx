@@ -13,6 +13,7 @@ import { SlateHero } from './SlateHero';
 import { Playground } from './Playground';
 import { StrengthDemo } from './StrengthDemo';
 import { WhatsNew } from './WhatsNew';
+import { LATEST, RELEASES, releaseDate } from './releases';
 import './site.css';
 import './fx.css';
 import './glass.css';
@@ -43,12 +44,12 @@ export default function Landing() {
           </div>
         }
       />
+      <New />
       <AgentStrip />
       <Ask />
       <Lens />
       <Try />
       <Strength />
-      <New />
       <WaysIn />
       <ClaimsGrid />
       <Neutral />
@@ -160,18 +161,31 @@ function New() {
     <section className="block wide" id="new">
       <div className="block-head reveal">
         <span className="eyebrow new-tag">
-          <b>New in 0.4</b> beyond flipped operators
+          <b>new in {LATEST.version}</b> released {releaseDate(LATEST.date)}
         </span>
-        <h2>Real bugs, real fixes, real track records</h2>
-        <p>Plant the defects agents actually ship. Hand agents structured findings and let only crossexam close them. Build a picture of which agent you can trust, from evidence.</p>
+        <h2>{LATEST.title}</h2>
+        <p>{LATEST.summary}</p>
       </div>
       <div className="reveal">
         <WhatsNew />
       </div>
       <div className="strength-foot reveal">
-        <CopyCmd cmd="npx crossexamdev reliability" small />
+        <CopyCmd cmd={LATEST.cmd} small />
         <span>reverify, findings and reliability are in the CLI and the MCP server today</span>
       </div>
+      <details className="rel-older reveal">
+        <summary>earlier releases</summary>
+        <ol>
+          {RELEASES.slice(1).map((r) => (
+            <li key={r.version}>
+              <span className="rel-v">v{r.version}</span>
+              <span className="rel-d">{releaseDate(r.date)}</span>
+              <b>{r.title}</b>
+              <p>{r.summary}</p>
+            </li>
+          ))}
+        </ol>
+      </details>
     </section>
   );
 }

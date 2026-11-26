@@ -3,6 +3,7 @@ import { LogoMark } from '../components/Logo';
 import { reducedMotion } from './glass';
 import { Mosaic } from './Mosaic';
 import { skyTexture } from './skytex';
+import { LATEST } from './releases';
 
 const LINES = [
   'hey. i’m crossexam.',
@@ -82,6 +83,9 @@ export function SlateHero({ cta }: { cta: React.ReactNode }) {
         </div>
       </div>
       <div className="sl-paper">
+        <a className="rel-pill" href="#new">
+          <b>new</b> v{LATEST.version} · {LATEST.title.toLowerCase()} <span aria-hidden="true">→</span>
+        </a>
         <h1>
           your agents say done.
           <br />
