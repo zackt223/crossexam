@@ -12,6 +12,7 @@ import { LensHero } from './LensHero';
 import { SlateHero } from './SlateHero';
 import { Playground } from './Playground';
 import { StrengthDemo } from './StrengthDemo';
+import { WhatsNew } from './WhatsNew';
 import './site.css';
 import './fx.css';
 import './glass.css';
@@ -47,6 +48,7 @@ export default function Landing() {
       <Lens />
       <Try />
       <Strength />
+      <New />
       <WaysIn />
       <ClaimsGrid />
       <Neutral />
@@ -148,6 +150,27 @@ function Strength() {
       <div className="strength-foot reveal">
         <CopyCmd cmd="npx crossexamdev mutate" small />
         <span>runs in a sandbox on Linux and macOS, never in your working tree</span>
+      </div>
+    </section>
+  );
+}
+
+function New() {
+  return (
+    <section className="block wide" id="new">
+      <div className="block-head reveal">
+        <span className="eyebrow new-tag">
+          <b>New in 0.4</b> beyond flipped operators
+        </span>
+        <h2>Real bugs, real fixes, real track records</h2>
+        <p>Plant the defects agents actually ship. Hand agents structured findings and let only crossexam close them. Build a picture of which agent you can trust, from evidence.</p>
+      </div>
+      <div className="reveal">
+        <WhatsNew />
+      </div>
+      <div className="strength-foot reveal">
+        <CopyCmd cmd="npx crossexamdev reliability" small />
+        <span>reverify, findings and reliability are in the CLI and the MCP server today</span>
       </div>
     </section>
   );
@@ -491,6 +514,7 @@ function Faq() {
     ['Why not wait for my agent vendor to build this?', 'They can only grade their own agent, and none of them will publish how often it’s wrong in your repo. A verifier is only credible if it is independent of what it verifies.'],
     ['Passing tests can still be weak. Can it tell?', 'Yes, with crossexam mutate. It plants small, deterministic defects in the lines your agent changed (a flipped <, an inverted if, && swapped for ||), runs your tests against each one, and shows which defects went unnoticed. That “test strength” sits next to the verdict and never replaces it: a claim that tests pass can be verified and still come with a weak-tests warning. JavaScript and TypeScript for now.'],
     ['Is it safe to run mutation testing on my repo?', 'Your working tree is never touched: mutants go into a temporary copy that is deleted afterwards, and crossexam checks every file, HEAD, branch and stash before and after. The tests run in a sandbox with no network and no access to your home folder: bubblewrap on Linux, sandbox-exec on macOS, or Docker anywhere. Where no sandbox works (Windows without Docker), it refuses to run unless you pass --unsandboxed, which is labelled in every report. A sandbox narrows what code can reach; it is not a guarantee, and the docs list what it does not cover.'],
+    ['Can my agent fix what crossexam finds?', 'Yes, and it can’t mark its own work as fixed. A run that finds something opens a session of structured findings (what’s wrong, what to do, how it will be re-checked). The agent gets them over MCP, makes its fix and calls reverify_findings. crossexam then re-runs the claims and plants the same defects again itself; only that re-check closes a finding. Every round feeds crossexam reliability, a history of how often each agent’s claims held up, how many planted defects its tests caught and how often its fixes landed first time.'],
     ['What about false positives?', 'crossexam only judges sentences that assert a result. “I’ll make sure tests pass”, “tests don’t pass yet” and quoted claims are ignored. Anything it can’t settle is marked “needs review”, never “contradicted”.'],
   ];
   return (

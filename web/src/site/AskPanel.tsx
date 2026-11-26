@@ -20,19 +20,29 @@ const MODES = [
     prompt: 'the agent says the new refund logic is tested. plant a few bugs in the lines it changed and tell me which ones the tests miss.',
     cmd: 'npx crossexamdev mutate',
     out: [
-      ['contradicted', 'refund.ts:48  >  →  >=', 'no test sits on day 30'],
-      ['verified', 'refund.ts:52  *  →  /', 'caught by “annual plan refunds”'],
-      ['review', 'test strength: moderate', '5 of 7 planted defects caught'],
+      ['contradicted', 'authorization · refund.ts:12', 'skipping the finance check still passed'],
+      ['contradicted', 'transactions · capture.ts:91', 'commit → rollback still passed'],
+      ['review', 'test strength: moderate · session cx-0da8d0a5ba', '5 of 7 planted defects caught'],
     ],
   },
   {
-    id: 'scan',
-    prompt: 'how often have my agents been wrong this month? split it by agent and by kind of claim.',
-    cmd: 'npx crossexamdev scan',
+    id: 'reverify',
+    prompt: 'i added tests for the two gaps you found. re-check them yourself and tell me what is actually closed.',
+    cmd: 'npx crossexamdev reverify cx-0da8d0a5ba',
     out: [
-      ['review', '1,412 claims read', 'from the transcripts on this machine'],
-      ['contradicted', '7.1% didn’t hold up', 'mostly “tests pass” after more edits'],
-      ['verified', 'nothing uploaded', 'the report stays on your disk'],
+      ['verified', 'authorization · refund.ts:12', 'resolved: the new test fails on the defect'],
+      ['contradicted', 'transactions · capture.ts:91', 'still open: tests pass with rollback'],
+      ['review', 're-check 1 of the session', 'only this re-check can close a finding'],
+    ],
+  },
+  {
+    id: 'reliability',
+    prompt: 'which agent can i trust with payments code? show me the evidence, not a vibe.',
+    cmd: 'npx crossexamdev reliability --since 90d',
+    out: [
+      ['verified', 'claims held up', 'how often “done” was true'],
+      ['review', 'tests caught', 'planted defects its tests noticed'],
+      ['review', 'fixed on the first re-check', 'three measures, never blended'],
     ],
   },
   {
