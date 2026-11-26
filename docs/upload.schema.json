@@ -115,6 +115,7 @@
               "col": { "type": ["integer", "null"] },
               "function": { "type": ["string", "null"], "maxLength": 121 },
               "operator": { "type": "string", "maxLength": 32 },
+              "category": { "type": ["string", "null"], "enum": ["boundaries", "logic", "arithmetic", "transactions", "authorization", "retries", "concurrency", null] },
               "status": { "enum": ["MUTATION_KILLED", "MUTATION_SURVIVED", "MUTATION_INVALID", "MUTATION_UNRESOLVED"] },
               "why": { "type": ["string", "null"], "maxLength": 601 },
               "ms": { "type": ["number", "null"] },

@@ -5,6 +5,8 @@
 // out (same length, newlines kept), so an operator never fires inside text and
 // every offset in the masked copy is also an offset in the original.
 
+import { createHash } from 'node:crypto';
+
 export const CODE_EXT = /\.(?:py|go|rs|java|kt|kts|rb|swift|cs|php|c|cc|cpp|h|hpp|scala|ex|exs|dart|vue|svelte|lua|r|jl)$/i;
 export const JS_EXT = /\.(?:[cm]?jsx?|[cm]?tsx?)$/i;
 export const TEST_FILE = /(?:^|[\\/])(?:__tests__|__mocks__|tests?|spec|e2e|fixtures?)[\\/]|[._-](?:test|spec)\.[cm]?[jt]sx?$/i;
@@ -319,7 +321,59 @@ export const OPERATORS = [
 ];
 
 const NEGATE = { id: 'negate-condition', label: 'condition', why: 'neither branch of this condition is pinned down by a test' };
-export const OPERATOR_WHY = Object.fromEntries([...OPERATORS, NEGATE].map((o) => [o.id, o.why]));
+
+/*
+ * Behavioural defects: the ways real changes go wrong, not just a flipped
+ * token. Found by pattern on the masked source (so never inside strings or
+ * comments), and labelled as such: a name like `requireAdmin` or `retries`
+ * is what marks the code, not a type checker.
+ */
+export const BEHAVIOURS = [
+  { id: 'commit-to-rollback', category: 'transactions', why: 'nothing checks that the work is actually committed' },
+  { id: 'drop-rollback', category: 'transactions', why: 'nothing checks that a failure undoes the partial writes' },
+  { id: 'bypass-auth', category: 'authorization', why: 'no test proves that a caller without permission is turned away' },
+  { id: 'drop-auth-check', category: 'authorization', why: 'no test proves that a caller without permission is turned away' },
+  { id: 'retry-once', category: 'retries', why: 'nothing tests what happens when the first attempt fails' },
+  { id: 'no-backoff', category: 'retries', why: 'nothing checks the wait between attempts' },
+  { id: 'off-by-one', category: 'boundaries', why: 'no test checks the first or the last item' },
+  { id: 'drop-await', category: 'concurrency', why: 'nothing checks that this finishes before the code moves on' },
+  { id: 'drop-lock', category: 'concurrency', why: 'nothing exercises two of these running at the same time' },
+  { id: 'all-settled', category: 'concurrency', why: 'nothing checks that one failed task fails the whole batch' },
+];
+
+export const OPERATOR_WHY = Object.fromEntries([...OPERATORS, NEGATE, ...BEHAVIOURS].map((o) => [o.id, o.why]));
+
+/** What kind of defect an operator plants. */
+export const CATEGORY = {
+  boundary: 'boundaries',
+  equality: 'logic',
+  logical: 'logic',
+  'remove-not': 'logic',
+  'negate-condition': 'logic',
+  boolean: 'logic',
+  arithmetic: 'arithmetic',
+  update: 'arithmetic',
+  ...Object.fromEntries(BEHAVIOURS.map((b) => [b.id, b.category])),
+};
+/** Categories that describe behaviour rather than syntax. */
+export const BEHAVIOURAL_CATEGORIES = new Set(['transactions', 'authorization', 'retries', 'concurrency']);
+export const isBehavioural = (op) => BEHAVIOURAL_CATEGORIES.has(CATEGORY[op]) || op === 'off-by-one';
+
+// Names that mark code as being about access, retries or array positions.
+const AUTH_WORDS = /\b(?:auth\w*|Auth\w*|authori[sz]\w*|permi\w*|can[A-Z]\w*|isAdmin|is[A-Z]\w*(?:Admin|Owner|Member|Allowed|Authori[sz]ed)|admin\w*|owner\w*|roles?|scopes?|allowed\w*|forbidden|unauthori[sz]ed|session|currentUser|acl|policy|access\w*)\b/;
+const AUTH_CALL = /^(?:require|assert|ensure|check|verify|enforce|authori[sz]e|guard|can|must)\w*$/i;
+const AUTH_NAME = /auth|perm|role|admin|owner|access|scope|login|session|can[A-Z]|allowed|policy|acl/i;
+const RETRY_WORDS = /\b(?:[a-z]*[Rr]etr(?:y|ies|ied)[A-Za-z]*|[a-z]*[Aa]ttempts?[A-Za-z]*|(?:max|num)?[Tt]ries|[a-z]*[Bb]ackoff[A-Za-z]*)\b/;
+const INDEX_WORDS = /\b(?:length|index|idx|count|size|limit|offset|page|end|start|last|first|len|total|cursor)\b/i;
+const DELAY_CALL = /\b(sleep|delay|wait|pause|backoff\w*|setTimeout)\s*\(/g;
+
+/** The whole line as one statement (no block, no control flow), or null. */
+function lineStatement(mline) {
+  const lead = mline.match(/^\s*/)[0].length;
+  const body = mline.slice(lead).replace(/\s+$/, '');
+  if (!body || /[{}]/.test(body) || /^(?:if|for|while|switch|return|throw|else|case|default|const|let|var|function|class|try|catch|finally|do)\b/.test(body)) return null;
+  return [lead, lead + body.length];
+}
 
 // Lines where an operator-looking token isn't an operator.
 const NOT_CODE_LINE = /^\s*(?:import\b|export\s+(?:\*|\{[^}]*\}\s+from)|\/\/|\*|type\s+\w+\s*=|interface\b|@)/;
@@ -397,8 +451,84 @@ export function generateMutants(file, src, lines) {
       if (!cond.trim() || /^\s*!\s*(?:[\w$.]+|\([^()]*\))\s*$/.test(cond)) continue;
       push(NEGATE.id, open + 1, close, `!(${cond})`);
     }
+    behaviouralMutants(mline, a, masked, src, push);
   }
   return mutants;
+}
+
+/** Realistic defects on one line: transactions, access checks, retries, positions, concurrency. */
+function behaviouralMutants(mline, a, masked, src, push) {
+  const stmt = lineStatement(mline);
+
+  // transactions: commit becomes rollback; a rollback disappears
+  for (const m of mline.matchAll(/\.(commit)\s*\(/g)) push('commit-to-rollback', a + m.index + 1, a + m.index + 1 + 6, 'rollback');
+  if (stmt && /\.\s*rollback\s*\(/.test(mline)) push('drop-rollback', a + stmt[0], a + stmt[1], 'void 0;');
+
+  // authorization: a guard that turns callers away never fires
+  for (const m of mline.matchAll(/\bif\s*\(/g)) {
+    const open = a + m.index + m[0].length - 1;
+    const close = matchClose(masked, open);
+    if (close < 0) continue;
+    const cond = masked.slice(open + 1, close);
+    if (!AUTH_WORDS.test(cond)) continue;
+    // only guards: the branch leaves (throw, return, a 4xx response, next(err))
+    if (!/^\s*(?:\{\s*)?(?:throw\b|return\b|res(?:ponse)?\.status\s*\(\s*4\d\d|next\s*\(\s*[\w$])/.test(masked.slice(close + 1, close + 200))) continue;
+    push('bypass-auth', open + 1, close, 'false');
+  }
+  // ...or a guard call (`await requireAdmin(user)`) is dropped
+  if (stmt) {
+    const call = mline.slice(stmt[0], stmt[1]).match(/^(?:await\s+)?(?:[\w$]+\.)*([\w$]+)\s*\(/);
+    if (call && AUTH_CALL.test(call[1]) && AUTH_NAME.test(call[1])) push('drop-auth-check', a + stmt[0], a + stmt[1], 'void 0;');
+  }
+
+  // retries: only one attempt, or no wait between attempts
+  if (RETRY_WORDS.test(mline)) {
+    for (const m of mline.matchAll(/(?<=\s)(<=?)\s+([\w$.]+)/g)) {
+      if (m[2] === '1' || m[2] === '0') continue;
+      const at = a + m.index + m[0].length - m[2].length;
+      push('retry-once', at, at + m[2].length, m[1] === '<=' ? '0' : '1');
+    }
+  }
+  for (const m of mline.matchAll(DELAY_CALL)) {
+    const open = a + m.index + m[0].length - 1;
+    const close = matchClose(masked, open);
+    if (close < 0) continue;
+    const inner = src.slice(open + 1, close);
+    // setTimeout(fn, ms): the delay is the last argument; sleep(ms): the only one
+    let from = open + 1;
+    if (m[1] === 'setTimeout') {
+      const comma = masked.slice(open + 1, close).lastIndexOf(',');
+      if (comma < 0) continue;
+      from = open + 1 + comma + 1;
+    }
+    const arg = src.slice(from, close);
+    if (!arg.trim() || /^\s*0\s*$/.test(arg) || (m[1] !== 'setTimeout' && inner.includes(','))) continue;
+    const lead = arg.match(/^\s*/)[0].length;
+    push('no-backoff', from + lead, close, '0');
+  }
+
+  // positions: an index or length loses its -1 / +1
+  if (INDEX_WORDS.test(mline)) {
+    for (const m of mline.matchAll(/(?<=[\w$\])])(\s[+-]\s1)(?![\w$.])/g)) push('off-by-one', a + m.index, a + m.index + m[1].length, '');
+  }
+
+  // concurrency: an await is dropped, a lock is skipped, Promise.all stops failing fast
+  for (const m of mline.matchAll(/(?<!for\s)\bawait\s+(?=[\w$([])/g)) push('drop-await', a + m.index, a + m.index + m[0].length, '');
+  if (stmt && /\.(?:acquire|lock|runExclusive|waitForUnlock)\s*\(|\b(?:acquireLock|lock)\s*\(/.test(mline) && !/\.release\s*\(|\bunlock\s*\(/.test(mline)) push('drop-lock', a + stmt[0], a + stmt[1], 'void 0;');
+  for (const m of mline.matchAll(/\bPromise\.(all)\s*\(/g)) {
+    const at = a + m.index + 'Promise.'.length;
+    push('all-settled', at, at + 3, 'allSettled');
+  }
+}
+
+/**
+ * A stable id for a mutant that outlives line shifts: the same change to the
+ * same code in the same function gets the same fingerprint, so a triage
+ * decision, or an agent's fix, carries over between runs.
+ */
+export function mutantFingerprint(m) {
+  const firstLine = String(m.before ?? '').split('\n')[0].replace(/\s+/g, ' ').trim();
+  return createHash('sha256').update([m.file, m.function ?? '', m.operator, m.original ?? '', m.replacement ?? '', firstLine].join('\u0000')).digest('hex').slice(0, 32);
 }
 
 /**
@@ -416,7 +546,8 @@ export function prioritize(mutants) {
   }
   // Within a function: round-robin across operators.
   const queues = [...byFn.values()].map((ops) => {
-    const lists = [...ops.values()];
+    // behavioural defects first, so a capped run still reaches them
+    const lists = [...ops.entries()].sort((x, y) => Number(isBehavioural(y[0])) - Number(isBehavioural(x[0]))).map(([, l]) => l);
     const q = [];
     for (let i = 0; lists.some((l) => l.length > i); i++) for (const l of lists) if (l[i]) q.push(l[i]);
     return q;
@@ -433,7 +564,15 @@ export function applyMutant(src, m) {
 /** One sentence on what a surviving mutant says about the tests. */
 export function explain(m) {
   const where = m.function ? `\`${m.function}\`` : 'top-level code';
-  const change = m.operator === 'negate-condition' ? `inverting \`${clip(m.original)}\`` : m.operator === 'remove-not' ? `dropping the \`!\`` : `\`${m.original}\` → \`${m.replacement}\``;
+  const change =
+    m.operator === 'negate-condition' ? `inverting \`${clip(m.original)}\``
+    : m.operator === 'remove-not' ? 'dropping the `!`'
+    : m.replacement === 'void 0;' ? `removing \`${clip(m.original)}\``
+    : m.operator === 'bypass-auth' ? `skipping the check \`${clip(m.original)}\``
+    : m.operator === 'drop-await' ? `dropping the \`await\` in \`${clip(m.before)}\``
+    : m.operator === 'off-by-one' ? `dropping \`${m.original.trim()}\``
+    : m.operator === 'no-backoff' ? `waiting 0 instead of \`${clip(m.original)}\``
+    : `\`${m.original}\` → \`${m.replacement}\``;
   return `In ${where}, ${change} still passed every test: ${OPERATOR_WHY[m.operator]}.`;
 }
 

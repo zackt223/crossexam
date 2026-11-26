@@ -208,7 +208,7 @@ test('MCP lists assess_test_strength next to verify_claims', async () => {
   for (let i = 0; i < 50 && lines.length < 2; i++) await new Promise((r) => setTimeout(r, 50));
   child.kill();
   const tools = JSON.parse(lines[1]).result.tools.map((t) => t.name);
-  assert.deepEqual(tools, ['verify_claims', 'assess_test_strength', 'list_checks']);
+  assert.deepEqual(tools, ['verify_claims', 'assess_test_strength', 'reverify_findings', 'agent_reliability', 'list_checks']);
 });
 
 test('the copy never deletes through its dependency links', () => {

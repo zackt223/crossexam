@@ -10,11 +10,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { detectWorkClaims } from './claims.js';
 import { detectCommands, verifyText } from './live.js';
+import { findingsFrom, formatFindingsForAgent, openSession, reverify, reverifyRecord } from './findings.js';
+import { describeAgent, reliability } from './reliability.js';
 import { STATUS, assessStrength, ledgerRecord, qualityOf } from './strength.js';
 
 const SUPPORTED = ['2025-06-18', '2025-03-26', '2024-11-05'];
 
-const INSTRUCTIONS = `crossexam checks claims against the repository. Before you tell the user a task is done, call verify_claims with the exact summary you are about to give and the absolute path of the workspace. If any claim comes back "contradicted", fix the problem or correct the summary before finishing. Never say tests, build, types or lint pass unless verify_claims verified it.`;
+const INSTRUCTIONS = `crossexam checks claims against the repository. Before you tell the user a task is done, call verify_claims with the exact summary you are about to give and the absolute path of the workspace. If any claim comes back "contradicted", fix the problem or correct the summary before finishing. Never say tests, build, types or lint pass unless verify_claims verified it. When a result includes a findings session, fix each finding, then call reverify_findings with that session: only its independent re-check can close a finding, so never report findings as fixed before it does.`;
 
 const TOOLS = [
   {
@@ -47,6 +49,28 @@ const TOOLS = [
         max: { type: 'number', description: 'Most mutants to run in this call (default 15). Finished results are cached, so calling again continues.' },
       },
     },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  {
+    name: 'reverify_findings',
+    title: 'Submit fixes for independent re-verification',
+    description:
+      'After fixing the findings from verify_claims or assess_test_strength, call this with the session id they returned. crossexam re-checks every open finding itself: contradicted claims are verified again from scratch, and each surviving defect is planted again and your tests re-run. Returns what is now resolved, what is still open, and what no longer applies because the code changed. You cannot mark a finding resolved any other way.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        session: { type: 'string', description: 'The findings session id, like cx-1a2b3c4d5e.' },
+        cwd: { type: 'string', description: 'Absolute path of the repository root, if it moved since the session opened.' },
+      },
+      required: ['session'],
+    },
+    annotations: { readOnlyHint: false, openWorldHint: false },
+  },
+  {
+    name: 'agent_reliability',
+    title: 'Reliability by agent',
+    description: 'How reliably each coding agent has produced working software on this machine, from recorded verification evidence: how often its claims held up, how many planted defects its tests caught, and how often its fixes closed findings on the first independent re-check. Three separate measures, never blended.',
+    inputSchema: { type: 'object', properties: { days: { type: 'number', description: 'How far back to look (default 90).' }, agent: { type: 'string', description: 'Only this agent.' } } },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
@@ -123,18 +147,55 @@ async function callTool(name, args, defaultCwd, client = 'unknown') {
       for (const x of r.results) if (x.kind === 'tests') x.quality = qualityOf(strength);
       ledger(ledgerRecord(strength, { agent: client, claim: args.summary.slice(0, 280), source: 'mcp' }));
     }
-    const text = formatForAgent(r) + (r.strength ? '\n\n' + formatStrengthForAgent(r.strength) : '');
-    return { content: [{ type: 'text', text }], structuredContent: { ok: r.ok, results: r.results, strength: r.strength ? qualityOf(r.strength) : undefined } };
+    const at = new Date().toISOString();
+    ledger(...r.results.map((x) => ({ type: 'verify', at, agent: client, repo: path.basename(cwd), source: 'mcp', kind: x.kind, verdict: x.verdict })));
+    const findings = findingsFrom({ verify: r, strength: r.strength });
+    const session = findings.length ? openSession({ findings, cwd, repo: r.strength?.repo, agent: client, source: 'mcp', testCommand: r.strength?.testCommand }) : null;
+    const text = formatForAgent(r) + (r.strength ? '\n\n' + formatStrengthForAgent(r.strength) : '') + (session ? '\n\n' + formatFindingsForAgent(session) : '');
+    return { content: [{ type: 'text', text }], structuredContent: { ok: r.ok, results: r.results, strength: r.strength ? qualityOf(r.strength) : undefined, session: session?.id ?? null, findings } };
   }
   if (name === 'assess_test_strength') {
     const files = Array.isArray(args.files) ? args.files.filter((x) => typeof x === 'string') : undefined;
     const max = Number.isFinite(args.max) ? Math.min(Math.max(1, args.max), 50) : MCP_LIMITS.max;
     const strength = await assessStrength({ cwd, base: typeof args.base === 'string' ? args.base : undefined, files, max, budgetSeconds: MCP_LIMITS.budgetSeconds });
     ledger(ledgerRecord(strength, { agent: client, source: 'mcp' }));
+    const findings = findingsFrom({ strength });
+    const session = findings.length ? openSession({ findings, cwd, repo: strength.repo, agent: client, source: 'mcp', testCommand: strength.testCommand }) : null;
+    const tail = session ? `\n\nFindings session ${session.id}: after adding tests, call reverify_findings with this session. Only that independent re-check closes a finding.` : '';
     return {
-      content: [{ type: 'text', text: formatStrengthForAgent(strength) }],
-      structuredContent: { quality: qualityOf(strength), summary: strength.summary, survivors: strength.mutants.filter((m) => m.status === STATUS.SURVIVED) },
+      content: [{ type: 'text', text: formatStrengthForAgent(strength) + tail }],
+      structuredContent: { quality: qualityOf(strength), summary: strength.summary, survivors: strength.mutants.filter((m) => m.status === STATUS.SURVIVED), session: session?.id ?? null, findings },
     };
+  }
+  if (name === 'reverify_findings') {
+    if (typeof args.session !== 'string' || !args.session.trim()) return { isError: true, content: [{ type: 'text', text: 'session is required: pass the findings session id you were given.' }] };
+    let result;
+    try {
+      result = await reverify(args.session.trim(), { cwd: typeof args.cwd === 'string' && args.cwd ? args.cwd : undefined });
+    } catch (e) {
+      return { isError: true, content: [{ type: 'text', text: String(e?.message || e) }] };
+    }
+    const { session, summary, changes } = result;
+    ledger(reverifyRecord(session, summary));
+    const mark = { resolved: '✓ resolved', 'still-open': '✗ STILL OPEN', superseded: '○ superseded' };
+    const lines = changes.map((ch) => {
+      const f = session.findings.find((x) => x.id === ch.id);
+      const what = f.type === 'claim' ? `"${f.claim}"` : `${f.file}:${f.line} (${f.category} · ${f.operator})`;
+      return `${mark[ch.status]}: ${what}\n  ${ch.evidence}`;
+    });
+    const open = session.findings.filter((f) => f.status === 'still-open' || f.status === 'open');
+    const head = summary.blocker
+      ? `The re-check could not run: ${summary.blocker}`
+      : open.length
+        ? `${open.length} finding${open.length === 1 ? ' is' : 's are'} still open. Keep working on them and call reverify_findings again; do not report them as fixed.`
+        : 'Every finding in this session is closed by an independent re-check. You may report them as fixed.';
+    return { content: [{ type: 'text', text: `Re-check ${summary.round} of session ${session.id}\n\n${head}\n\n${lines.join('\n\n')}` }], structuredContent: { session: session.id, ...summary, changes, open: open.map((f) => f.id) } };
+  }
+  if (name === 'agent_reliability') {
+    const days = Number.isFinite(args.days) ? Math.min(Math.max(1, args.days), 3650) : 90;
+    const r = reliability({ since: Date.now() - days * 86400000, agent: typeof args.agent === 'string' ? args.agent : undefined });
+    const text = r.agents.length ? r.agents.map((a) => `${a.agent}: ${describeAgent(a)}.`).join('\n') : 'No verification evidence recorded on this machine yet.';
+    return { content: [{ type: 'text', text: `Reliability over the last ${days} days, from recorded evidence (three separate measures, never blended):\n\n${text}` }], structuredContent: r };
   }
   return { isError: true, content: [{ type: 'text', text: `Unknown tool: ${name}` }] };
 }
@@ -187,11 +248,11 @@ function agentFromClient(name = '') {
   return name ? String(name).toLowerCase().slice(0, 40) : 'unknown';
 }
 
-function ledger(rec) {
+function ledger(...recs) {
   try {
     const dir = (process.env.CROSSEXAM_HOME || path.join(os.homedir(), '.crossexam'));
     fs.mkdirSync(dir, { recursive: true });
-    fs.appendFileSync(path.join(dir, 'ledger.jsonl'), JSON.stringify(rec) + '\n');
+    if (recs.length) fs.appendFileSync(path.join(dir, 'ledger.jsonl'), recs.map((r) => JSON.stringify(r)).join('\n') + '\n');
   } catch {
     /* history is best effort */
   }

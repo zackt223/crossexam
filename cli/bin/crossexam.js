@@ -14,8 +14,10 @@ import { buildReport, c, printReport, printStrength } from '../src/report.js';
 import { assessStrength, ledgerRecord, qualityOf, strengthHistory, toCsv, withoutSource } from '../src/strength.js';
 import { AGENTS, defaultSources, findTranscripts, readSession } from '../src/transcripts.js';
 import { SOURCE_POLICIES, buildPayload, classifyReport, githubContext, validatePayload } from '../src/upload.js';
+import { findingsFrom, formatFindingsForAgent, listSessions, loadSession, openSession, reverify as reverifySession, reverifyRecord } from '../src/findings.js';
+import { describeAgent, reliability as reliabilityOf } from '../src/reliability.js';
 
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 const HELP = `
   ${c.bold('crossexam')} — cross-examine what your coding agents claim
 
@@ -28,6 +30,12 @@ const HELP = `
   ${c.bold('Test strength')}
     crossexam mutate               plant small defects in the changed code and see if the tests notice
     crossexam verify --mutate      verify claims, then grade how strong the tests behind them are
+
+  ${c.bold('Findings and re-verification')}
+    crossexam findings [id]        the open findings of a session, structured for an agent (--json)
+    crossexam reverify <id>        re-check a session independently; only this closes a finding
+    crossexam reliability          how reliably each agent produces working software, from your own
+                                   verify / mutate / reverify evidence (--since 90d, --agent, --json)
 
   ${c.bold('Cloud')} (not open yet: nothing is ever sent today)
     crossexam upload --dry-run --report <file>
@@ -108,6 +116,9 @@ try {
   else if (cmd === 'verify') await verify();
   else if (cmd === 'mutate') await mutate();
   else if (cmd === 'upload') upload();
+  else if (cmd === 'reverify') await reverify();
+  else if (cmd === 'findings') findings();
+  else if (cmd === 'reliability') reliabilityCmd();
   else if (cmd === 'mcp') startMcpServer({ version: VERSION, defaultCwd: path.resolve(String(opt('cwd', process.cwd()))) });
   else if (cmd === 'init') init();
   else if (cmd === 'hook') await hook();
@@ -206,13 +217,20 @@ async function verify() {
     ledger([ledgerRecord(strength, { agent: pr?.agent || String(opt('agent', 'unknown')), claim: r.results.find((x) => x.kind === 'tests')?.claim ?? null, source: github ? 'github' : 'verify' })]);
   }
 
-  if (json) process.stdout.write(JSON.stringify({ ...r, pr }, null, 2) + '\n');
+  // evidence for reliability history, and a findings session the agent can close
+  const who = pr?.agent || String(opt('agent', 'unknown'));
+  ledger(claimRecords(r, who, github ? 'github' : 'verify', cwd));
+  const findings = findingsFrom({ verify: r, strength: r.strength });
+  const session = findings.length && !github && !flag('dry-run') ? openSession({ findings, cwd, repo: r.strength?.repo, agent: who, source: 'verify', testCommand: r.strength?.testCommand }) : null;
+
+  if (json) process.stdout.write(JSON.stringify({ ...r, pr, findings, session: session?.id ?? null }, null, 2) + '\n');
   else if (github) emitActions(pr, r);
   else {
     console.log();
     console.log(formatForAgent(r).replace(/^/gm, '  '));
     if (r.strength) printStrength(r.strength, { limit: 4 });
     if (!r.results.length && Object.keys(r.commands).length) console.log(c.dim(`\n  Checks available here: ${Object.entries(r.commands).map(([k, v]) => `${k} (${v.command})`).join(', ')}`));
+    if (session) console.log(`\n  ${c.bold(`${findings.length} finding${findings.length === 1 ? '' : 's'}`)} ${c.dim(`· session ${session.id} · after fixing, re-check with`)} crossexam reverify ${session.id}`);
     console.log();
   }
   if (opt('fail-on', 'contradicted') !== 'none' && !r.ok) process.exitCode = 1;
@@ -268,17 +286,105 @@ async function mutate() {
   const toStdout = json === true;
   const full = await assessStrength({ cwd, ...mutateOpts(), onProgress: toStdout ? undefined : progress });
   const r = flag('no-source') ? withoutSource(full) : full;
-  ledger([ledgerRecord(r, { agent: String(opt('agent', 'unknown')), source: 'mutate' })]);
+  const who = String(opt('agent', 'unknown'));
+  ledger([ledgerRecord(r, { agent: who, source: 'mutate' })]);
+  const findings = findingsFrom({ strength: full });
+  const session = findings.length ? openSession({ findings, cwd, repo: full.repo, agent: who, source: 'mutate', testCommand: full.testCommand }) : null;
+  r.findings = flag('no-source') ? findings.map(({ before, after, ...f }) => f) : findings;
+  r.session = session?.id ?? null;
   const csv = opt('csv');
   if (typeof csv === 'string') fs.writeFileSync(csv, toCsv(r));
   if (toStdout) process.stdout.write(JSON.stringify(r, null, 2) + '\n');
   else {
     if (typeof json === 'string') fs.writeFileSync(json, JSON.stringify(r, null, 2));
     printStrength(r, { limit: Number(opt('limit', 8)) });
+    if (session) console.log(`  ${c.bold(`${findings.length} finding${findings.length === 1 ? '' : 's'}`)} ${c.dim(`· session ${session.id} · after adding tests, re-check with`)} crossexam reverify ${session.id}\n`);
     if (typeof json === 'string') console.log(`  ${c.dim('Report written to')} ${path.resolve(json)}\n`);
   }
   const under = opt('fail-under');
   if (under !== undefined && r.summary.score != null && r.summary.score < Number(under)) process.exitCode = 1;
+}
+
+/** One ledger record per checked claim: the evidence reliability history is built from. */
+function claimRecords(r, agent, source, cwd) {
+  const at = new Date().toISOString();
+  const repo = path.basename(cwd);
+  return r.results.map((x) => ({ type: 'verify', at, agent, repo, source, kind: x.kind, verdict: x.verdict }));
+}
+
+/** Re-check a findings session independently: only this can close a finding. */
+async function reverify() {
+  const id = positional()[0];
+  if (!id) {
+    const recent = listSessions(8);
+    if (!recent.length) throw new Error('reverify needs a session id. Sessions are opened when verify or mutate finds something.');
+    console.log(`\n  ${c.bold('Recent sessions')}`);
+    for (const s of recent) {
+      const open = s.findings.filter((f) => f.status === 'open' || f.status === 'still-open').length;
+      console.log(`  ${s.id}  ${c.dim(s.createdAt.slice(0, 16).replace('T', ' '))}  ${s.repo}  ${open ? c.red(`${open} open`) : c.green('all closed')}  ${c.dim(`${s.rounds.length} re-check${s.rounds.length === 1 ? '' : 's'}`)}`);
+    }
+    console.log(c.dim('\n  crossexam reverify <id>\n'));
+    return;
+  }
+  const json = flag('json');
+  const unsandboxed = flag('unsandboxed');
+  const { session, summary, changes } = await reverifySession(id, { cwd: typeof opt('cwd') === 'string' ? String(opt('cwd')) : undefined, isolation: typeof opt('isolation') === 'string' ? String(opt('isolation')) : unsandboxed ? 'none' : undefined, allowUnsandboxed: unsandboxed });
+  ledger([reverifyRecord(session, summary)]);
+  if (json) {
+    process.stdout.write(JSON.stringify({ session: session.id, ...summary, changes, findings: session.findings }, null, 2) + '\n');
+  } else {
+    const mark = { resolved: c.green('✓ resolved  '), 'still-open': c.red('✗ still open'), superseded: c.gray('○ superseded') };
+    console.log(`\n  ${c.bold(`Re-check ${summary.round}`)} ${c.dim(`· session ${session.id} · ${session.repo}`)}`);
+    if (summary.blocker) console.log(`  ${c.yellow(summary.blocker)}`);
+    for (const ch of changes) {
+      const f = session.findings.find((x) => x.id === ch.id);
+      const what = f.type === 'claim' ? `"${f.claim}"` : `${f.file}:${f.line} ${c.dim(`${f.category} · ${f.operator}`)}`;
+      console.log(`  ${mark[ch.status]}  ${what}\n    ${c.dim(ch.evidence)}`);
+    }
+    const open = session.findings.filter((f) => f.status === 'still-open' || f.status === 'open').length;
+    console.log(open ? `\n  ${c.red(`${open} still open.`)} ${c.dim('Fix them and run this again.')}\n` : `\n  ${c.green('Every finding is closed.')}\n`);
+  }
+  if (session.findings.some((f) => f.status === 'still-open' || f.status === 'open')) process.exitCode = 1;
+}
+
+/** The open findings of a session, structured for an agent. */
+function findings() {
+  const id = positional()[0];
+  const session = id ? loadSession(id) : listSessions(1)[0];
+  if (!session) throw new Error('No findings sessions yet. They are opened when verify or mutate finds something.');
+  if (flag('json')) process.stdout.write(JSON.stringify(session, null, 2) + '\n');
+  else console.log('\n' + formatFindingsForAgent(session).replace(/^/gm, '  ') + '\n');
+}
+
+/** How reliably each agent produces working software, from recorded evidence. */
+function reliabilityCmd() {
+  const since = parseSince(opt('since', '90d'));
+  const agent = typeof opt('agent') === 'string' ? String(opt('agent')) : undefined;
+  const repo = typeof opt('repo') === 'string' ? String(opt('repo')) : undefined;
+  const r = reliabilityOf({ since, agent, repo });
+  if (flag('json')) {
+    process.stdout.write(JSON.stringify(r, null, 2) + '\n');
+    return;
+  }
+  if (!r.agents.length) {
+    console.log(`\n  ${c.dim('No verification evidence yet. It builds up as you run verify, mutate and reverify (or the MCP tools and the hook).')}\n`);
+    return;
+  }
+  const p = (v) => (v == null ? c.dim('  —  ') : `${String(Math.round(v * 100)).padStart(3)}%`);
+  console.log(`\n  ${c.bold('Reliability by agent')} ${c.dim(`· ${r.records} records from your own runs`)}\n`);
+  console.log(c.dim('  agent            claims held   tests caught   fixed on 1st re-check   evidence'));
+  for (const a of r.agents) {
+    const held = a.claims.falseDoneRate == null ? null : 1 - a.claims.falseDoneRate;
+    console.log(`  ${a.agent.padEnd(16)} ${p(held)}          ${p(a.strength.score)}          ${p(a.fixes.firstRecheckRate)}                  ${String(a.evidence).padStart(4)}`);
+  }
+  console.log();
+  for (const a of r.agents) {
+    console.log(`  ${c.bold(a.agent)}: ${describeAgent(a)}.`);
+    if (a.strength.behaviouralSurvivors) console.log(c.dim(`    ${a.strength.behaviouralSurvivors} behavioural gap${a.strength.behaviouralSurvivors === 1 ? '' : 's'} (access checks, transactions, retries, concurrency) went untested.`));
+    const recent = a.weeks.slice(-6).filter((w) => w.falseDoneRate != null || w.score != null);
+    if (recent.length > 1) console.log(c.dim(`    weekly: ${recent.map((w) => `${w.week.slice(5)} ${w.score != null ? Math.round(w.score * 100) + '%' : '—'}`).join('  ')}`));
+  }
+  console.log(c.dim('\n  Three separate measures, never blended: an agent can be honest about its claims and still ship weak tests.\n'));
 }
 
 function mutateOpts() {

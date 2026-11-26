@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { excerpt, judgeRun } from './evidence.js';
 import { redact, tildify } from './redact.js';
 import { detectCommands, loadConfig } from './live.js';
-import { JS_EXT, TEST_FILE, applyMutant, classifyFile, explain, generateMutants, prioritize } from './mutate.js';
+import { CATEGORY, JS_EXT, TEST_FILE, applyMutant, classifyFile, explain, generateMutants, isBehavioural, mutantFingerprint, prioritize } from './mutate.js';
 import { allowlistedEnv, chooseIsolation, clampLimits, createCopy, describeIsolation, fingerprint, gitState, git as gitRead, isInside, projectFiles, runIsolated, scrubbedEnv, sha, sweepStaleCopies } from './sandbox.js';
 
 export const STATUS = /** @type {const} */ ({
@@ -226,7 +226,20 @@ export async function assessStrength(opts) {
     f.mutants = ms.length;
     all.push(...ms);
   }
-  const queue = prioritize(all);
+  let queue = prioritize(all);
+  // re-verification: run exactly these mutants (by fingerprint), nothing else
+  let missingFingerprints = [];
+  if (opts.fingerprints) {
+    const want = new Set(opts.fingerprints);
+    const found = new Set();
+    queue = queue.filter((m) => {
+      const fp = mutantFingerprint(m);
+      if (!want.has(fp) || found.has(fp)) return false;
+      found.add(fp);
+      return true;
+    });
+    missingFingerprints = [...want].filter((f) => !found.has(f));
+  }
   const fnNames = [...new Set(all.map((m) => m.function).filter(Boolean))];
   const { tests, associated } = associatedTests(cwd, files.map((f) => f.file), fnNames);
 
@@ -254,6 +267,7 @@ export async function assessStrength(opts) {
     workingTreeUntouched: null,
     execution: { repository: repoName(cwd), mutantsGenerated: all.length, mutantsPlanned: queue.length, testRuns: 0, staleCopiesRemoved: 0, cleanup: { status: 'not needed' } },
     notes,
+    missingFingerprints,
   };
   const block = (text) => {
     report.blocker = text;
@@ -270,6 +284,8 @@ export async function assessStrength(opts) {
     return finish();
   }
   if (!queue.length) {
+    // a re-check whose defects are all gone isn't blocked: they no longer apply
+    if (opts.fingerprints) return finish();
     block('The changed lines contain no operators crossexam mutates yet (comparisons, conditions, arithmetic, booleans, logic).');
     return finish();
   }
@@ -427,6 +443,8 @@ function record(m, status, why, ms, cached) {
     function: m.function,
     functionLine: m.functionLine,
     operator: m.operator,
+    category: CATEGORY[m.operator] ?? 'logic',
+    fingerprint: mutantFingerprint(m),
     original: m.original,
     replacement: m.replacement,
     before: redact(m.before),
@@ -453,7 +471,9 @@ const repoName = (cwd) => {
 // ---------- summary ----------
 
 // Survivors that say the most about missing tests come first.
-const WEIGHT = { 'negate-condition': 6, boundary: 5, equality: 5, logical: 4, 'remove-not': 4, boolean: 3, arithmetic: 3, update: 2 };
+const WEIGHT = { 'bypass-auth': 10, 'drop-auth-check': 10, 'commit-to-rollback': 9, 'drop-rollback': 9, 'drop-lock': 8, 'all-settled': 7, 'retry-once': 7, 'no-backoff': 5, 'off-by-one': 6, 'drop-await': 6, 'negate-condition': 6, boundary: 5, equality: 5, logical: 4, 'remove-not': 4, boolean: 3, arithmetic: 3, update: 2 };
+/** How much a surviving mutant should worry a reviewer: high for behavioural gaps on access, money and concurrency. */
+export const severityOf = (op) => ((WEIGHT[op] || 0) >= 8 ? 'high' : (WEIGHT[op] || 0) >= 5 ? 'medium' : 'low');
 
 function summarise(report, t0) {
   const n = (s) => report.mutants.filter((m) => m.status === s).length;
@@ -474,6 +494,7 @@ function summarise(report, t0) {
     score: judged ? Math.round((killed / judged) * 1000) / 1000 : null,
     ms: Date.now() - t0,
     cachedResults: report.mutants.filter((m) => m.cached).length,
+    behavioural: report.mutants.filter((m) => isBehavioural(m.operator)).length,
   };
 
   const fns = new Map();
@@ -483,6 +504,16 @@ function summarise(report, t0) {
     const f = fns.get(k);
     f[{ [STATUS.KILLED]: 'killed', [STATUS.SURVIVED]: 'survived', [STATUS.INVALID]: 'invalid', [STATUS.UNRESOLVED]: 'unresolved' }[m.status]]++;
   }
+  // what kind of defect the tests miss: syntax-level or behavioural
+  const cats = {};
+  for (const m of report.mutants) {
+    const k = m.category || 'logic';
+    cats[k] ??= { killed: 0, survived: 0 };
+    if (m.status === STATUS.KILLED) cats[k].killed++;
+    if (m.status === STATUS.SURVIVED) cats[k].survived++;
+  }
+  report.categories = cats;
+
   report.functions = [...fns.values()]
     .map((f) => ({ ...f, score: f.killed + f.survived ? Math.round((f.killed / (f.killed + f.survived)) * 1000) / 1000 : null }))
     .sort((a, b) => b.survived - a.survived || (a.score ?? 1) - (b.score ?? 1) || a.file.localeCompare(b.file));
@@ -548,7 +579,7 @@ export function ledgerRecord(report, { agent = 'unknown', claim = null, source =
     testCommand: report.testCommand,
     rating: report.rating,
     ...report.summary,
-    survivors: report.mutants.filter((m) => m.status === STATUS.SURVIVED).slice(0, 20).map((m) => ({ id: m.id, function: m.function, operator: m.operator })),
+    survivors: report.mutants.filter((m) => m.status === STATUS.SURVIVED).slice(0, 20).map((m) => ({ id: m.id, function: m.function, operator: m.operator, category: m.category, behavioural: isBehavioural(m.operator) })),
   };
 }
 

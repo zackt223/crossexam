@@ -3,9 +3,9 @@
 // This module only builds and checks the payload. It never opens a network
 // connection: sending arrives with crossexam cloud, and `crossexam upload
 // --dry-run` shows exactly what would leave, so nothing is a surprise later.
-import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { agentOf } from './github.js';
+import { CATEGORY, mutantFingerprint } from './mutate.js';
 import { scrubText } from './redact.js';
 
 export const UPLOAD_KIND = 'crossexam.upload/v1';
@@ -18,15 +18,7 @@ export const SOURCE_POLICIES = ['changed-lines', 'none'];
 const cap = (s, n) => (typeof s === 'string' && s.length > n ? s.slice(0, n) + '…' : s);
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
-/**
- * A stable id for a surviving mutant that outlives line shifts: the same
- * change to the same code in the same function gets the same fingerprint, so
- * a triage decision ("equivalent", "accepted") carries over between runs.
- */
-export function mutantFingerprint(m) {
-  const firstLine = String(m.before ?? '').split('\n')[0].replace(/\s+/g, ' ').trim();
-  return createHash('sha256').update([m.file, m.function ?? '', m.operator, m.original ?? '', m.replacement ?? '', firstLine].join('\u0000')).digest('hex').slice(0, 32);
-}
+export { mutantFingerprint };
 
 /** The GitHub Actions run this is part of, from the runner's environment. Null outside Actions. */
 export function githubContext(env = process.env) {
@@ -120,12 +112,13 @@ export function buildPayload({ verify = null, mutation = null, github = null, ag
         sha256: typeof f.sha256 === 'string' ? f.sha256 : null,
       })),
       mutants: (mutation.mutants ?? []).slice(0, LIMITS.mutants).map((m) => ({
-        fingerprint: mutantFingerprint(m),
+        fingerprint: typeof m.fingerprint === "string" && /^[0-9a-f]{32}$/.test(m.fingerprint) ? m.fingerprint : mutantFingerprint(m),
         file: t(m.file, 300),
         line: num(m.line),
         col: num(m.col),
         function: m.function ? t(m.function, 120) : null,
         operator: String(m.operator),
+        category: m.category ?? CATEGORY[m.operator] ?? null,
         status: STATUSES.includes(m.status) ? m.status : 'MUTATION_UNRESOLVED',
         why: m.why ? t(m.why) : null,
         ms: num(m.ms),

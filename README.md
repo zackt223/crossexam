@@ -124,6 +124,38 @@ Results are reported alongside the factual verdicts, never mixed into them:
   - The GitHub Action (`mutate: true`).
   - `crossexam scan` history: test strength by agent, from earlier runs.
 - **Languages.** JavaScript and TypeScript for now, with any test runner your test command uses (`node --test`, vitest, jest, mocha…). Other languages are listed as skipped, never silently ignored.
+- **Behavioural defects, not just flipped tokens.** These are run first, and survivors are ranked high:
+  - **transactions:** a commit becomes a rollback, or a rollback is dropped;
+  - **authorization:** an access guard is bypassed, or a `requirePermission(…)` call is removed;
+  - **retries:** only one attempt is made, or there's no backoff;
+  - **boundaries:** off-by-one changes on indexes and lengths;
+  - **concurrency:** a dropped `await`, a skipped lock, or `Promise.all` becoming `allSettled`.
+
+  They're pattern-based, so treat survivors as leads. The full list is in [docs/mutation-intelligence.md](docs/mutation-intelligence.md).
+
+### Agents fix it, crossexam re-checks it
+
+```bash
+crossexam mutate                 # 1 finding · session cx-0da8d0a5ba
+crossexam findings --json        # structured: what's wrong, what to do, how it'll be re-checked
+crossexam reverify cx-0da8d0a5ba # ✓ resolved: the planted defect is caught now
+```
+
+A run that finds something opens a session. The agent gets structured findings through MCP, makes its fix, and calls `reverify_findings`. crossexam then re-runs the claims and plants the same defects again itself. Only that re-check can close a finding; nothing the agent says can.
+
+### Reliability by agent
+
+```bash
+crossexam reliability --since 90d
+```
+
+This is a history of how reliably each agent produces working software, built from evidence crossexam recorded on your machine:
+
+- how often its claims held up;
+- how many planted defects its tests caught;
+- how often its fixes closed every finding on the first re-check.
+
+The three are shown side by side and never blended. The `agent_reliability` MCP tool gives agents and teams the same answer.
 
 ### Isolation: what runs where
 

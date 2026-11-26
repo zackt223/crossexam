@@ -147,7 +147,8 @@ export function printStrength(r, { line = (s = '') => process.stdout.write(s + '
     line(c.bold('  Defects the tests did not notice'));
     line();
     for (const m of surv.slice(0, limit)) {
-      line(`  ${SHORT[m.status]}  ${m.file}:${m.line}  ${c.dim((m.function || 'top level') + ' · ' + m.operator)}`);
+      const kind = m.category && !['logic', 'arithmetic'].includes(m.category) ? `${m.category} · ` : '';
+      line(`  ${SHORT[m.status]}  ${m.file}:${m.line}  ${c.dim((m.function || 'top level') + ' · ' + kind + m.operator)}`);
       if (m.before != null) line(c.dim(`    - ${m.before.split('\n')[0].slice(0, 110)}`));
       if (m.after != null) line(`    ${c.red('+ ' + m.after.split('\n')[0].slice(0, 110))}`);
       line(`    ${c.dim('→ ' + m.why)}`);

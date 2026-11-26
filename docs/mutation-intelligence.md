@@ -64,6 +64,53 @@ New modules:
 
 Binary operators only match with whitespace on both sides (`a < b`). This keeps generics (`Array<T>`), arrows (`=>`) and JSX tags out of scope.
 
+### Behavioural defects
+
+These are the ways real changes go wrong, not just a flipped token. They are found by pattern on code with strings and comments masked out, and they are run first when a run is capped. They are pattern-based: a name like `requireAdmin`, `retries` or `tx.commit` is what marks the code, not a type checker, so some will miss and some will be equivalent.
+
+| id | category | change | a survivor means |
+|---|---|---|---|
+| `commit-to-rollback` | transactions | `tx.commit()` → `tx.rollback()` | nothing checks that the work is actually committed |
+| `drop-rollback` | transactions | `await tx.rollback();` removed | nothing checks that a failure undoes the partial writes |
+| `bypass-auth` | authorization | an access guard that throws, returns or sends a 4xx gets `if (false)` | no test proves a caller without permission is turned away |
+| `drop-auth-check` | authorization | `await requirePermission(…);` removed | the same |
+| `retry-once` | retries | `attempt < maxRetries` → `attempt < 1` | nothing tests what happens when the first attempt fails |
+| `no-backoff` | retries | `sleep(…)` / `setTimeout(…, ms)` waits 0 | nothing checks the wait between attempts |
+| `off-by-one` | boundaries | `items.length - 1` → `items.length`, `page + 1` → `page` | no test checks the first or the last item |
+| `drop-await` | concurrency | `await save(x)` → `save(x)` (never in `for await`) | nothing checks that this finishes before the code moves on |
+| `drop-lock` | concurrency | `await mutex.acquire();` removed | nothing exercises two of these running at once |
+| `all-settled` | concurrency | `Promise.all` → `Promise.allSettled` | nothing checks that one failed task fails the whole batch |
+
+Each mutant carries its category in reports and uploads. A surviving behavioural defect on access, money or concurrency is ranked high.
+
+## Agent-driven verification
+
+A run that finds something opens a **session** on your machine (`~/.crossexam/sessions/`). Each contradicted claim and each surviving defect becomes a structured finding with:
+
+- a stable id;
+- a severity;
+- what to do;
+- how it will be re-checked.
+
+Agents get the findings through the MCP tools (`verify_claims`, `assess_test_strength`), or by running `crossexam findings --json`.
+
+When the agent has made its fix, it calls `reverify_findings` (or runs `crossexam reverify <id>`). crossexam re-checks each open finding itself:
+
+- **Claims** are verified again from scratch.
+- **Each surviving defect** is planted again by its fingerprint, and the tests re-run.
+
+Each finding ends up resolved, still open, or superseded (its code is gone, so a fresh `mutate` should judge the new code). Nothing the agent says can close a finding.
+
+## Reliability intelligence
+
+`crossexam reliability` (and the `agent_reliability` MCP tool) builds a per-agent history from evidence crossexam recorded itself. It reports three measures side by side, never blended into one score:
+
+- how often the agent's claims held up;
+- how many planted defects its tests caught;
+- how often its fixes closed every finding on the first independent re-check.
+
+It also shows a weekly trend, and the number of behavioural gaps that went untested.
+
 ## 4. Safety and performance
 
 The full threat model, the isolation backends and the security tests are in [mutation-security.md](mutation-security.md). In short:
